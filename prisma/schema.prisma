@@ -1,0 +1,81 @@
+// Prisma schema for adi workwear
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  role      String
+  company   Company? @relation(fields: [companyId], references: [id])
+  companyId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Company {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  defaultMdId String? 
+  users       User[]
+}
+
+model PriceList {
+  id              String   @id @default(uuid())
+  category        String?
+  item            String
+  size            String?
+  lookupKey       String?
+  costPerItem     Float
+  dateCostEntered DateTime?
+}
+
+model Order {
+  id              String    @id @default(uuid())
+  orderNumber     String?   @unique
+  createdById     String
+  createdBy       User      @relation(fields: [createdById], references: [id])
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  mdId            String?
+  requiredByDate  DateTime?
+  deliveryCost    Float     @default(0)
+  invoicedValue   Float     @default(0)
+  status          String
+  placedAt        DateTime?
+  placedOrderRef  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  items           OrderItem[]
+  audits          OrderAudit[]
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  order       Order   @relation(fields: [orderId], references: [id])
+  orderId     String
+  priceListId String?
+  itemName    String
+  size        String?
+  qty         Int
+  unitPrice   Float
+  lineTotal   Float
+}
+
+model OrderAudit {
+  id        String   @id @default(uuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  userId    String
+  action    String
+  notes     String?
+  createdAt DateTime @default(now())
+}
