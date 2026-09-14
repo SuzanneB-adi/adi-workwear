@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workwear &amp; PPE order — adi Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2430;
+    --ink-soft:#2C3847;
+    --paper:#FFFFFF;
+    --surface:#EEF0F3;
+    --rule:#D4D8DE;
+    --muted:#5C6675;
+    --hivis:#F2C200;
+    --hivis-tint:#FDF7DD;
+    --danger:#B3261E;
+    --radius:3px;
+    --max:900px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--surface);
+    color:var(--ink);
+    font-family:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:16px;
+    line-height:1.45;
+    padding-bottom:96px;
+  }
+
+  /* ---------- header ---------- */
+  header{background:var(--ink);color:#fff;border-bottom:4px solid var(--hivis)}
+  .head-inner{max-width:var(--max);margin:0 auto;padding:26px 20px 22px}
+  .brand{font-size:13px;color:#A9B3C1;margin:0 0 6px}
+  h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.01em}
+  .strap{margin:6px 0 0;font-size:14px;color:#A9B3C1;max-width:62ch}
+
+  main{max-width:var(--max);margin:0 auto;padding:22px 20px 0}
+
+  .panel{background:var(--paper);border:1px solid var(--rule);border-radius:var(--radius);margin-bottom:18px}
+  .panel-head{padding:14px 18px;border-bottom:1px solid var(--rule);display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .panel-head h2{margin:0;font-size:16px;font-weight:600}
+  .panel-head .hint{font-size:13px;color:var(--muted)}
+  .panel-body{padding:18px}
+
+  /* ---------- fields ---------- */
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px}
+  .field{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .field.wide{grid-column:1 / -1}
+  label{font-size:13px;color:var(--muted);font-weight:500}
+  input[type=text],input[type=date],select,textarea{
+    font:inherit;font-size:15px;color:var(--ink);
+    background:var(--paper);
+    border:1px solid var(--rule);border-radius:var(--radius);
+    padding:9px 10px;width:100%;
+  }
+  textarea{resize:vertical;min-height:70px}
+  input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{
+    outline:2px solid var(--ink);outline-offset:1px
+  }
+  .req{color:var(--danger)}
+
+  /* ---------- item rows ---------- */
+  .group + .group{border-top:1px solid var(--rule)}
+  .group-name{margin:0;padding:14px 18px 8px;font-size:14px;font-weight:600;color:var(--ink-soft)}
+  .row{
+    display:grid;
+    grid-template-columns:26px minmax(0,1fr) auto;
+    align-items:center;gap:12px;
+    padding:9px 18px 9px 14px;
+    border-left:4px solid transparent;
+  }
+  .row + .row{border-top:1px solid #EDEFF2}
+  .row.on{background:var(--hivis-tint);border-left-color:var(--hivis)}
+  .row input[type=checkbox]{width:18px;height:18px;accent-color:var(--ink);margin:0;cursor:pointer}
+  .row .name{font-size:15px;cursor:pointer;user-select:none}
+  .row .name small{display:block;color:var(--muted);font-size:12.5px}
+  .picks{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .pick{display:flex;align-items:center;gap:6px}
+  .pick span{font-size:12.5px;color:var(--muted)}
+  .pick select{width:auto;min-width:92px;padding:6px 8px;font-size:14px}
+  .qty{width:64px;padding:6px 8px;font-size:14px;text-align:center}
+  .row select:disabled,.row input:disabled{background:#F7F8F9;color:#9AA3AF}
+  .row.err{border-left-color:var(--danger);background:#FCF2F1}
+
+  /* ---------- action bar ---------- */
+  .bar{
+    position:fixed;left:0;right:0;bottom:0;background:var(--paper);
+    border-top:1px solid var(--rule);
+  }
+  .bar-inner{
+    max-width:var(--max);margin:0 auto;padding:12px 20px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .count{font-size:14px;color:var(--muted)}
+  .count b{color:var(--ink);font-weight:600}
+  .buttons{display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    font:inherit;font-size:15px;font-weight:600;
+    padding:10px 18px;border-radius:var(--radius);cursor:pointer;
+    border:1px solid var(--ink);background:var(--paper);color:var(--ink);
+  }
+  button.primary{background:var(--hivis);border-color:#D9AF00;color:var(--ink)}
+  button.ghost{border-color:var(--rule);color:var(--muted);font-weight:500}
+  button:hover{filter:brightness(0.97)}
+
+  .notice{
+    max-width:var(--max);margin:0 auto 14px;padding:11px 14px;
+    border-radius:var(--radius);font-size:14px;display:none;
+  }
+  .notice.show{display:block}
+  .notice.bad{background:#FCF2F1;border:1px solid #E6BEBA;color:var(--danger)}
+  .notice.good{background:#EFF6EE;border:1px solid #C2DCBE;color:#215B2B}
+
+  @media (max-width:620px){
+    h1{font-size:23px}
+    .grid{grid-template-columns:1fr}
+    .row{grid-template-columns:24px minmax(0,1fr);row-gap:8px;padding:11px 14px}
+    .picks{grid-column:2 / -1;justify-content:flex-start}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-inner">
+    <p class="brand">adi Group</p>
+    <h1>Workwear &amp; PPE order</h1>
+    <p class="strap">Tick what you need and choose a size for each item. Sizes are set per item, so your jacket and your shirt can differ.</p>
+  </div>
+</header>
+
+<main>
+  <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Who the order is for</h2></div>
+    <div class="panel-body">
+      <div class="grid">
+        <div class="field">
+          <label for="firstName">First name <span class="req">*</span></label>
+          <input type="text" id="firstName" autocomplete="given-name">
+        </div>
+        <div class="field">
+          <label for="lastName">Last name <span class="req">*</span></label>
+          <input type="text" id="lastName" autocomplete="family-name">
+        </div>
+        <div class="field">
+          <label for="company">Company <span class="req">*</span></label>
+          <select id="company"><option value="">Choose a company</option></select>
+        </div>
+        <div class="field">
+          <label for="orderDate">Date of order</label>
+          <input type="date" id="orderDate">
+        </div>
+        <div class="field wide">
+          <label for="site">Site or department for delivery</label>
+          <input type="text" id="site" placeholder="e.g. Kings Norton office, or a customer site">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Items</h2>
+      <span class="hint">Ticking a row opens its size options</span>
+    </div>
+    <div id="catalogue"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Anything else</h2></div>
+    <div class="panel-body">
+      <div class="field">
+        <label for="notes">Notes for whoever places the order</label>
+        <textarea id="notes" placeholder="Embroidery, name badges, anything not on the list above"></textarea>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="bar-inner">
+    <p class="count" id="count">Nothing selected yet</p>
+    <div class="buttons">
+      <button type="button" class="ghost" id="clearBtn">Clear form</button>
+      <button type="button" id="xlsxBtn">Download Excel</button>
+      <button type="button" class="primary" id="pdfBtn">Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* =====================================================================
+   EDIT THIS BLOCK TO CHANGE COMPANIES, SIZES OR ITEMS.
+   Nothing below the CONFIG block needs touching to add a new garment.
+   ===================================================================== */
+
+const COMPANIES = [
+  { code: "01", name: "adi Electrical" },
+  { code: "17", name: "adi Climate" },
+  { code: "03", name: "adi Automotive" },
+  { code: "09", name: "adi Food & Beverage" }
+];
+
+const SIZE_SETS = {
+  garment: ["XS","S","M","L","XL","2XL","3XL","4XL"],
+  waist:   ["28in","30in","32in","34in","36in","38in","40in","42in","44in"],
+  leg:     ["Short (29in)","Regular (31in)","Long (33in)"],
+  boot:    ["5","6","7","8","9","10","11","12","13","14"],
+  glove:   ["S","M","L","XL"],
+  onesize: ["One size"]
+};
+
+// size: an array of the choices needed for that item.
+// One entry = one drop-down. Trousers use two (waist and leg).
+const CATALOGUE = [
+  { group: "Hi-vis and outerwear", items: [
+    { name: "Hi-vis jacket",            size: [{ label:"Size", set:"garment" }] },
+    { name: "Hi-vis waistcoat",         size: [{ label:"Size", set:"garment" }] },
+    { name: "Hi-vis over-trousers",     size: [{ label:"Size", set:"garment" }] },
+    { name: "Softshell jacket",         size: [{ label:"Size", set:"garment" }] },
+    { name: "Bodywarmer",               size: [{ label:"Size", set:"garment" }] }
+  ]},
+  { group: "Shirts and tops", items: [
+    { name: "Long-sleeve shirt",        size: [{ label:"Size", set:"garment" }] },
+    { name: "Short-sleeve shirt",       size: [{ label:"Size", set:"garment" }] },
+    { name: "Polo shirt",               size: [{ label:"Size", set:"garment" }] },
+    { name: "T-shirt",                  size: [{ label:"Size", set:"garment" }] },
+    { name: "Sweatshirt",               size: [{ label:"Size", set:"garment" }] },
+    { name: "Fleece",                   size: [{ label:"Size", set:"garment" }] }
+  ]},
+  { group: "Trousers and coveralls", items: [
+    { name: "Work trousers",            size: [{ label:"Waist", set:"waist" }, { label:"Leg", set:"leg" }] },
+    { name: "Work shorts",              size: [{ label:"Waist", set:"waist" }] },
+    { name: "Coverall",                 size: [{ label:"Size", set:"garment" }] }
+  ]},
+  { group: "Footwear", items: [
+    { name: "Safety boots",             size: [{ label:"Size", set:"boot" }], note: "Steel toe and midsole" },
+    { name: "Safety trainers",          size: [{ label:"Size", set:"boot" }] },
+    { name: "Wellingtons",              size: [{ label:"Size", set:"boot" }] }
+  ]},
+  { group: "PPE and accessories", items: [
+    { name: "Safety helmet",            size: [{ label:"Size", set:"onesize" }] },
+    { name: "Safety glasses",           size: [{ label:"Size", set:"onesize" }] },
+    { name: "Gloves",                   size: [{ label:"Size", set:"glove" }] },
+    { name: "Ear defenders",            size: [{ label:"Size", set:"onesize" }] },
+    { name: "Beanie hat",               size: [{ label:"Size", set:"onesize" }] }
+  ]}
+];
+
+/* ===================== end of CONFIG ===================== */
+
+const $ = id => document.getElementById(id);
+const notice = $("notice");
+
+// ---- build the company list
+COMPANIES.forEach(c => {
+  const o = document.createElement("option");
+  o.value = c.code;
+  o.textContent = c.code + " — " + c.name;
+  $("company").appendChild(o);
+});
+
+// ---- today's date
+$("orderDate").value = new Date().toISOString().slice(0,10);
+
+// ---- build the item rows
+const cat = $("catalogue");
+CATALOGUE.forEach((grp, gi) => {
+  const section = document.createElement("div");
+  section.className = "group";
+  const h = document.createElement("p");
+  h.className = "group-name";
+  h.textContent = grp.group;
+  section.appendChild(h);
+
+  grp.items.forEach((item, ii) => {
+    const id = "i" + gi + "_" + ii;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.name = item.name;
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = id;
+    cb.setAttribute("aria-label", item.name);
+
+    const label = document.createElement("label");
+    label.className = "name";
+    label.htmlFor = id;
+    label.textContent = item.name;
+    if (item.note) {
+      const s = document.createElement("small");
+      s.textContent = item.note;
+      label.appendChild(s);
+    }
+
+    const picks = document.createElement("div");
+    picks.className = "picks";
+
+    item.size.forEach(dim => {
+      const wrap = document.createElement("div");
+      wrap.className = "pick";
+      const cap = document.createElement("span");
+      cap.textContent = dim.label;
+      const sel = document.createElement("select");
+      sel.disabled = true;
+      sel.dataset.dim = dim.label;
+      sel.innerHTML = '<option value="">—</option>' +
+        SIZE_SETS[dim.set].map(v => '<option value="' + v + '">' + v + '</option>').join("");
+      // picking a size ticks the item
+      sel.addEventListener("change", () => { if (sel.value && !cb.checked) { cb.checked = true; sync(row); } });
+      wrap.append(cap, sel);
+      picks.appendChild(wrap);
+    });
+
+    const qwrap = document.createElement("div");
+    qwrap.className = "pick";
+    const qcap = document.createElement("span");
+    qcap.textContent = "Qty";
+    const qty = document.createElement("input");
+    qty.type = "number"; qty.min = "1"; qty.max = "99"; qty.value = "1";
+    qty.className = "qty"; qty.disabled = true;
+    qty.setAttribute("aria-label", item.name + " quantity");
+    qwrap.append(qcap, qty);
+    picks.appendChild(qwrap);
+
+    cb.addEventListener("change", () => sync(row));
+    row.append(cb, label, picks);
+    section.appendChild(row);
+  });
+
+  cat.appendChild(section);
+});
+
+function sync(row){
+  const on = row.querySelector('input[type=checkbox]').checked;
+  row.classList.toggle("on", on);
+  row.classList.remove("err");
+  row.querySelectorAll("select, .qty").forEach(el => el.disabled = !on);
+  if (!on) row.querySelectorAll("select").forEach(s => s.value = "");
+  updateCount();
+}
+
+function updateCount(){
+  const rows = selectedRows();
+  const lines = rows.length;
+  const units = rows.reduce((t,r) => t + (parseInt(r.querySelector(".qty").value,10) || 0), 0);
+  $("count").innerHTML = lines
+    ? "<b>" + lines + "</b> item" + (lines>1?"s":"") + ", <b>" + units + "</b> unit" + (units>1?"s":"")
+    : "Nothing selected yet";
+}
+document.addEventListener("input", e => { if (e.target.classList.contains("qty")) updateCount(); });
+
+const selectedRows = () =>
+  [...document.querySelectorAll(".row")].filter(r => r.querySelector('input[type=checkbox]').checked);
+
+function say(msg, ok){
+  notice.textContent = msg;
+  notice.className = "notice show " + (ok ? "good" : "bad");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function clearNotice(){ notice.className = "notice"; }
+
+// ---- gather and validate
+function collect(){
+  clearNotice();
+  document.querySelectorAll(".row.err").forEach(r => r.classList.remove("err"));
+
+  const first = $("firstName").value.trim();
+  const last  = $("lastName").value.trim();
+  const code  = $("company").value;
+
+  if (!first || !last){ say("Add a first and last name before exporting."); (first ? $("lastName") : $("firstName")).focus(); return null; }
+  if (!code){ say("Choose a company before exporting."); $("company").focus(); return null; }
+
+  const rows = selectedRows();
+  if (!rows.length){ say("Tick at least one item before exporting."); return null; }
+
+  const lines = [];
+  let missing = null;
+  rows.forEach(r => {
+    const sels = [...r.querySelectorAll("select")];
+    if (sels.some(s => !s.value)){
+      r.classList.add("err");
+      if (!missing) missing = r;
+      return;
+    }
+    lines.push({
+      item: r.dataset.name,
+      size: sels.map(s => s.dataset.dim + " " + s.value).join(", "),
+      qty: parseInt(r.querySelector(".qty").value,10) || 1
+    });
+  });
+
+  if (missing){
+    say("Choose a size for every item you have ticked — the ones outstanding are marked.");
+    missing.querySelector("select").focus();
+    return null;
+  }
+
+  const company = COMPANIES.find(c => c.code === code);
+  return {
+    first, last,
+    company: code + " — " + company.name,
+    date: $("orderDate").value || new Date().toISOString().slice(0,10),
+    site: $("site").value.trim(),
+    notes: $("notes").value.trim(),
+    lines,
+    units: lines.reduce((t,l) => t + l.qty, 0)
+  };
+}
+
+const fileStem = d => "adi-workwear-order-" + d.last.replace(/\W+/g,"") + "-" + d.date;
+const ukDate = iso => { const [y,m,dd] = iso.split("-"); return dd + "/" + m + "/" + y; };
+
+// ---- PDF
+$("pdfBtn").addEventListener("click", () => {
+  const d = collect(); if (!d) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:"mm", format:"a4" });
+  const L = 15;
+
+  doc.setFillColor(27,36,48); doc.rect(0,0,210,26,"F");
+  doc.setFillColor(242,194,0); doc.rect(0,26,210,1.6,"F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold").setFontSize(15).text("Workwear & PPE order", L, 14);
+  doc.setFont("helvetica","normal").setFontSize(9).setTextColor(180,190,203).text("adi Group", L, 20);
+
+  doc.setTextColor(27,36,48);
+  doc.autoTable({
+    startY: 34,
+    theme: "plain",
+    styles: { fontSize: 10, cellPadding: 1.4 },
+    columnStyles: { 0: { cellWidth: 34, textColor: [92,102,117] } },
+    body: [
+      ["Name", d.first + " " + d.last],
+      ["Company", d.company],
+      ["Date", ukDate(d.date)],
+      ["Delivery to", d.site || "—"]
+    ],
+    margin: { left: L, right: L }
+  });
+
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 6,
+    head: [["Item","Size","Qty"]],
+    body: d.lines.map(l => [l.item, l.size, String(l.qty)]),
+    foot: [["Total","", String(d.units)]],
+    theme: "grid",
+    styles: { fontSize: 10, cellPadding: 2.4, lineColor: [212,216,222] },
+    headStyles: { fillColor: [27,36,48], textColor: 255, fontStyle: "bold" },
+    footStyles: { fillColor: [242,243,245], textColor: [27,36,48], fontStyle: "bold" },
+    columnStyles: { 1: { cellWidth: 52 }, 2: { cellWidth: 16, halign: "center" } },
+    margin: { left: L, right: L }
+  });
+
+  let y = doc.lastAutoTable.finalY + 8;
+  if (d.notes){
+    doc.setFontSize(9).setTextColor(92,102,117).text("Notes", L, y);
+    doc.setFontSize(10).setTextColor(27,36,48);
+    const wrapped = doc.splitTextToSize(d.notes, 180);
+    doc.text(wrapped, L, y + 5);
+    y += 5 + wrapped.length * 4.6 + 6;
+  }
+
+  doc.setDrawColor(212,216,222);
+  doc.line(L, y + 10, L + 70, y + 10);
+  doc.line(L + 90, y + 10, L + 150, y + 10);
+  doc.setFontSize(9).setTextColor(92,102,117);
+  doc.text("Approved by", L, y + 15);
+  doc.text("Date", L + 90, y + 15);
+
+  doc.save(fileStem(d) + ".pdf");
+  say("PDF downloaded.", true);
+});
+
+// ---- Excel
+$("xlsxBtn").addEventListener("click", () => {
+  const d = collect(); if (!d) return;
+  const aoa = [
+    ["Workwear & PPE order"],
+    [],
+    ["Name", d.first + " " + d.last],
+    ["Company", d.company],
+    ["Date", ukDate(d.date)],
+    ["Delivery to", d.site || ""],
+    [],
+    ["Item","Size","Qty"],
+    ...d.lines.map(l => [l.item, l.size, l.qty]),
+    ["Total","", d.units],
+    [],
+    ["Notes", d.notes || ""]
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 26 }, { wch: 30 }, { wch: 8 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Order");
+  XLSX.writeFile(wb, fileStem(d) + ".xlsx");
+  say("Excel file downloaded.", true);
+});
+
+// ---- clear
+$("clearBtn").addEventListener("click", () => {
+  if (!confirm("Clear everything on this form?")) return;
+  ["firstName","lastName","site","notes"].forEach(i => $(i).value = "");
+  $("company").value = "";
+  $("orderDate").value = new Date().toISOString().slice(0,10);
+  document.querySelectorAll(".row").forEach(r => {
+    r.querySelector('input[type=checkbox]').checked = false;
+    r.querySelector(".qty").value = 1;
+    sync(r);
+  });
+  clearNotice();
+});
+
+updateCount();
+</script>
+</body>
+</html>
