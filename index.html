@@ -128,4 +128,20 @@ function wireRemoveSizeButtons(){document.querySelectorAll(".remove-size-row").f
 
 function saveProductDatabaseItem(existingProduct){const name=$("dbItemName").value.trim(),selectedCategory=$("dbCategory").value,category=selectedCategory==="__new__"?$("dbNewCategory").value.trim():selectedCategory,rows=[...document.querySelectorAll(".db-size-row")];if(!name||!category)return say("Enter an item name and choose its form category.",false);if(!rows.length)return say("Add at least one size.",false);const sizePriceHistory={};for(const row of rows){const size=row.querySelector(".size-name").value.trim(),original=row.dataset.originalSize,costText=row.querySelector(".new-size-cost").value.trim(),effectiveFrom=row.querySelector(".new-size-date").value;if(!size)return say("Enter a size on every line.",false);if(sizePriceHistory[size])return say("Each size can only appear once for an item.",false);const oldHistory=existingProduct?.sizePriceHistory?.[original]||[];sizePriceHistory[size]=oldHistory.map(r=>({...r}));if(!oldHistory.length&&(!costText||!effectiveFrom))return say("Enter a cost and effective date for every new size.",false);if((costText&&!effectiveFrom)||(!costText&&effectiveFrom))return say("Enter both the new cost and its effective-from date.",false);if(costText&&effectiveFrom){const cost=Number(costText);if(!Number.isFinite(cost)||cost<0)return say("Enter a valid cost for "+size+".",false);const record={effectiveFrom,cost:+cost.toFixed(2)},at=sizePriceHistory[size].findIndex(r=>r.effectiveFrom===effectiveFrom);if(at>=0)sizePriceHistory[size][at]=record;else sizePriceHistory[size].push(record);sizePriceHistory[size].sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))}}
 const product=existingProduct||{id:"P"+Date.now()+Math.random().toString(16).slice(2),priceHistory:[]};product.name=name;product.category=category;product.active=$("dbItemActive").checked;product.sizePriceHistory=sizePriceHistory;product.prices=effectivePrices(product);if(!existingProduct)products.push(product);products.sort((a,b)=>{const ai=catalogueGroupOrder.indexOf(a.category),bi=catalogueGroupOrder.indexOf(b.category);return(ai<0?99:ai)-(bi<0?99:bi)||a.name.localeCompare(b.name)});save(STORAGE.products,products);syncEffectivePrices();renderCatalogue();renderAdmin();say(name+" saved. New prices will activate on their effective dates.")}
+
+/* Separate password-protected dashboard menu and view. */
+const dashboardView=document.createElement("section");
+dashboardView.id="dashboardView";dashboardView.className="view hidden";
+dashboardView.innerHTML='<div class="view-title"><div><h2>Workwear dashboard</h2><p>Group and company-level order, expenditure and recharge reporting.</p></div></div>';
+$("managementView").before(dashboardView);
+const dashboardNav=document.createElement("button");
+dashboardNav.dataset.view="dashboard";dashboardNav.innerHTML='Dashboard <span class="locked" aria-hidden="true">&#128274;</span>';
+const manageNav=document.querySelector('.nav button[data-view="management"]');
+manageNav.before(dashboardNav);
+protectedViews.add("dashboard");
+dashboardView.appendChild($("managementView").querySelector(".metrics"));
+dashboardView.appendChild($("businessDashboard"));
+const dashboardShowView=showView;
+showView=view=>{if(view==="dashboard"&&sessionStorage.getItem(AUTH_SESSION)==="yes")renderOrders();dashboardShowView(view)};
+dashboardNav.onclick=()=>secureNavigate("dashboard");
 </script></body></html>
