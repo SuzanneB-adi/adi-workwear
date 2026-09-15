@@ -225,4 +225,17 @@ function buildSplitStockMenu(){if(splitStockMenuBuilt)return;const subnav=$("adm
 showAdminSection=section=>{activeAdminSection=section;const map={companies:"adminCompanies",categories:"adminCategories",stock:"adminStock",stockcheck:"adminStockCheck",bulk:"adminBulk"};Object.values(map).forEach(id=>$(id)?.classList.toggle("hidden",id!==map[section]));document.querySelectorAll("[data-admin-section]").forEach(b=>b.classList.toggle("active",b.dataset.adminSection===section));if(section==="categories")renderCategoryAdmin();if(section==="stock")renderProductDatabase();if(section==="stockcheck")renderStockCheck();if(section==="bulk")renderBulkOrders()};
 
 setTimeout(()=>{const match=location.hash.match(/^#approval=(.+)$/);if(match){linkedApprovalId=decodeURIComponent(match[1]);secureNavigate("approvals")}},0);
+
+/* Request form routing, new-starter need-by date and management home. */
+document.querySelector('.nav button[data-view="order"]').textContent="Request form";
+const employeeTypeField=$("employeeType").closest(".field"),needByField=document.createElement("div");needByField.className="field hidden";needByField.id="needByField";needByField.innerHTML='<label>Need-by date <span class="req">*</span></label><input id="needByDate" type="date">';employeeTypeField.after(needByField);
+const updateNeedBy=()=>needByField.classList.toggle("hidden",$("employeeType").value!=="New starter");$("employeeType").addEventListener("change",updateNeedBy);
+$("notes").placeholder="";
+const needBySubmitCore=$("submitOrder").onclick;
+$("submitOrder").onclick=()=>{const employeeType=$("employeeType").value,needByDate=$("needByDate").value;if(employeeType==="New starter"&&!needByDate)return say("Enter the date the new starter needs their workwear.",false);const count=orders.length;needBySubmitCore();if(orders.length>count){orders[0].needByDate=employeeType==="New starter"?needByDate:"";save(STORAGE.orders,orders);$("needByDate").value="";updateNeedBy()}};
+const needByOpenOrderCore=openOrder;
+openOrder=id=>{needByOpenOrderCore(id);const order=orders.find(o=>o.id===id),grid=$("orderDetail")?.querySelector(".grid");if(order&&grid){const field=document.createElement("div");field.className="field";field.innerHTML='<label>Need-by date</label><input value="'+(order.needByDate?ukDateValue(order.needByDate):"Not applicable")+'" disabled>';grid.appendChild(field)}};
+
+const requestShareButton=document.createElement("button");requestShareButton.className="btn primary";requestShareButton.textContent="Copy request form link";requestShareButton.onclick=async()=>{const url=location.href.split("#")[0]+"#request";try{await navigator.clipboard.writeText(url);say("Request form link copied.")}catch{window.prompt("Copy this request form link:",url)}};$("managementView").querySelector(".view-title").appendChild(requestShareButton);
+setTimeout(()=>{if(location.hash==="#request"){displayView("order")}else if(!location.hash){secureNavigate("management")}},25);
 </script></body></html>
