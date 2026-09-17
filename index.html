@@ -183,7 +183,7 @@ function confirmBulkArrival(id){const order=bulkOrders.find(o=>o.id===id),date=d
 
 /* Active category management and assignment. */
 const CATEGORY_STORAGE_KEY="adi-workwear-categories-v1";
-let categoryRecords=(()=>{try{const saved=JSON.parse(localStorage.getItem(CATEGORY_STORAGE_KEY));if(Array.isArray(saved)&&saved.length)return saved.map((category,index)=>({...category,order:Number.isFinite(Number(category.order))?Number(category.order):index+1}))}catch{}return[...new Set(products.map(p=>p.category))].map((name,index)=>({id:"C"+String(index+1).padStart(3,"0"),name,active:true,order:index+1}))})();
+let categoryRecords=(()=>{try{const saved=JSON.parse(localStorage.getItem(CATEGORY_STORAGE_KEY));if(Array.isArray(saved)&&saved.length)return saved.map((category,index)=>({...category,order:Number.isFinite(Number(category.order))?Number(category.order):index+1}))}catch{}return[...new Set(products.map(p=>p.category))].map((name,index)=>({id:"C"+String(index+1).padStart(3,"0"),name,active:true,order:index+1}))})();const MASTER_CATEGORY_VERSION="2026-09-17-attached-categories-v1",masterCategoryNames=[...new Set(MASTER_CATALOGUE.map(product=>product.category))];if(localStorage.getItem("adi-workwear-category-version")!==MASTER_CATEGORY_VERSION||!masterCategoryNames.every(name=>categoryRecords.some(category=>category.name===name))){categoryRecords=masterCategoryNames.map((name,index)=>({id:"C"+String(index+1).padStart(3,"0"),name,active:true,order:index+1}));localStorage.setItem("adi-workwear-category-version",MASTER_CATEGORY_VERSION)}
 function saveCategories(){localStorage.setItem(CATEGORY_STORAGE_KEY,JSON.stringify(categoryRecords))}
 saveCategories();
 let categoryAdminBuilt=false;
