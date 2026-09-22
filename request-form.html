@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Opening the latest workwear request form</title>
+</head>
+<body>
+  <p>Opening the latest workwear request form…</p>
+  <script>
+    const app=new URL('index.html',location.href);
+    app.searchParams.set('embed','1');
+    app.searchParams.set('v',Date.now().toString());
+    app.hash='request';
+    location.replace(app.toString());
+  </script>
+</body>
+</html>
