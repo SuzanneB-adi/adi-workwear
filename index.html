@@ -612,6 +612,8 @@ function installCompanyAdminSubmenu(){
  show('list')
 }
 installCompanyAdminSubmenu();
+const companySubmenuRenderAdminCore=renderAdmin;
+renderAdmin=()=>{companySubmenuRenderAdminCore();installCompanyAdminSubmenu()};
 renderBusinessDashboard();
 initialiseM365();
 </script></body></html>
