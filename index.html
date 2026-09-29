@@ -761,12 +761,13 @@ const rechargeView=document.createElement("section");rechargeView.id="rechargeVi
 rechargeView.innerHTML='<div class="view-title"><div><h2>Recharge and refunds</h2><p>Open an order, return or replacement to record the final charge or refund.</p></div></div><section class="panel" id="rechargeListPanel"><div class="panel-head"><h3>All workwear transactions</h3></div><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Type</th><th>Employee</th><th>Company</th><th>Status</th><th>Expected adjustment</th><th>Action</th></tr></thead><tbody id="rechargeRows"></tbody></table></div></section><section class="panel hidden" id="rechargeDetailPanel"><div class="panel-head"><h3 id="rechargeDetailTitle"></h3><button class="btn small" id="backRecharge">Back to all transactions</button></div><div class="panel-body" id="rechargeDetail"></div></section>';
 $("managementView").before(rechargeView);
 const rechargeNav=document.createElement("button");rechargeNav.dataset.view="recharge";rechargeNav.textContent="Recharge";returnsNav.after(rechargeNav);rechargeNav.onclick=()=>secureNavigate("recharge");
+let rechargeReturnOrderId="";
 function renderRecharge(){
  $("rechargeListPanel").classList.remove("hidden");$("rechargeDetailPanel").classList.add("hidden");
  const orderRows=orders.filter(o=>o.status==="Ordered").map(o=>'<tr><td><button class="link-btn" data-recharge-order="'+esc(o.id)+'">'+esc(o.id)+'</button></td><td>Original order</td><td>'+esc(o.first+" "+o.last)+'</td><td>'+esc(o.company)+'</td><td>'+esc(o.status)+'</td><td>'+money(o.finalRecharge||0)+'</td><td><button class="link-btn" data-recharge-order="'+esc(o.id)+'">Open order</button></td></tr>');
  const returnRows=workwearReturns.filter(r=>isReplacementRecord(r)?r.status==="Awaiting recharge"&&Number(r.replacementCharge||0)+Number(r.deliveryCharge||0)>0:r.status==="Awaiting refund"&&Number(r.refundValue||0)>0).map(r=>'<tr><td><button class="link-btn" data-recharge-return="'+esc(r.id)+'">'+esc(r.id)+'</button></td><td>'+(isReplacementRecord(r)?"Replacement":"Return")+'</td><td>'+esc(r.employee)+'</td><td>'+esc(r.company)+'</td><td>'+esc(r.status)+'</td><td>'+money(isReplacementRecord(r)?Number(r.replacementCharge||0)+Number(r.deliveryCharge||0):-Number(r.refundValue||0))+'</td><td><button class="link-btn" data-recharge-return="'+esc(r.id)+'">Open details</button></td></tr>');
  $("rechargeRows").innerHTML=[...orderRows,...returnRows].join("")||'<tr><td colspan="7">No transactions recorded.</td></tr>';
- $("rechargeRows").querySelectorAll("[data-recharge-order]").forEach(b=>b.onclick=async()=>{await secureNavigate("management");openOrder(b.dataset.rechargeOrder)});
+ $("rechargeRows").querySelectorAll("[data-recharge-order]").forEach(b=>b.onclick=async()=>{rechargeReturnOrderId=b.dataset.rechargeOrder;await secureNavigate("management");openOrder(b.dataset.rechargeOrder);$("backOrders").textContent="Back to all transactions"});
  $("rechargeRows").querySelectorAll("[data-recharge-return]").forEach(b=>b.onclick=()=>openRechargeRecord(b.dataset.rechargeReturn));
 }
 $("backRecharge").onclick=renderRecharge;
@@ -809,6 +810,9 @@ const returnsMenuCore=permissionsForRole;
 permissionsForRole=role=>({...returnsMenuCore(role),returns:["workwear manager","workwear admin","system admin"].includes(roleKey(role)),recharge:["workwear manager","workwear admin","system admin"].includes(roleKey(role))});
 const returnsShowCore=showView;
 showView=view=>{if(view==="returns"){if(!canOpenView("returns"))return;renderReturns()}if(view==="recharge"){if(!canOpenView("recharge"))return;renderRecharge()}returnsShowCore(view)};
+const backFromRechargeButton=$("backOrders");
+backFromRechargeButton.onclick=async()=>{if(rechargeReturnOrderId){rechargeReturnOrderId="";backFromRechargeButton.textContent="Back to all orders";backFromRechargeButton.classList.add("hidden");await secureNavigate("recharge");renderRecharge()}else{renderOrders();backFromRechargeButton.classList.add("hidden")}};
+document.querySelector('.nav button[data-view="management"]')?.addEventListener("click",()=>{rechargeReturnOrderId="";backFromRechargeButton.textContent="Back to all orders"});
 applyMenuPermissions();
 
 initialiseM365();
