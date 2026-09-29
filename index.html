@@ -821,6 +821,30 @@ backFromRechargeButton.onclick=async()=>{if(rechargeReturnOrderId){rechargeRetur
 document.querySelector('.nav button[data-view="management"]')?.addEventListener("click",()=>{rechargeReturnOrderId="";backFromRechargeButton.textContent="Back to all orders"});
 applyMenuPermissions();
 
+const deliveryConfirmationOpenOrderCore=openOrder;
+openOrder=id=>{
+ deliveryConfirmationOpenOrderCore(id);
+ const order=orders.find(value=>value.id===id),delivery=$("detailDelivery"),invoice=$("detailInvoice"),ace=$("detailAceInvoiceReference"),recharged=$("detailRechargedValue"),saveButton=$("saveOrder"),markButton=$("markRecharged");
+ if(!order||!delivery||!invoice||!ace||!recharged||!["workwear manager","workwear admin","system admin"].includes(roleKey(currentAccess.role)))return;
+ let confirmed=false;
+ const field=delivery.closest(".field"),confirmation=document.createElement("button"),message=document.createElement("p");
+ confirmation.type="button";confirmation.className="btn small";confirmation.textContent="Confirm delivery charge";confirmation.style.marginTop="8px";message.className="help";message.textContent="Confirm the delivery charge before entering invoice details or the value recharged.";message.style.margin="6px 0 0";field.append(confirmation,message);
+ const lock=()=>{confirmed=false;invoice.disabled=ace.disabled=recharged.disabled=true;if(markButton)markButton.disabled=true;confirmation.disabled=false;message.textContent="Confirm the delivery charge before entering invoice details or the value recharged."};
+ const originalDeliveryInput=delivery.oninput;delivery.oninput=event=>{originalDeliveryInput?.call(delivery,event);lock();invoice.value="";ace.value="";recharged.value="";const amount=Number(delivery.value);if(Number.isFinite(amount)&&amount>=0){$("deliveryCalc").textContent=money(amount);$("finalCalc").textContent=money(Number(order.recharge||0)+amount)}};
+ lock();
+ confirmation.onclick=async()=>{
+  const raw=delivery.value.trim(),amount=Number(raw);
+  if(!raw||!Number.isFinite(amount)||amount<0||Math.abs(Math.round(amount*100)-amount*100)>0.00001)return say("Enter a valid delivery charge with no more than two decimal places.",false);
+  if(amount===0&&!window.confirm("The delivery charge is £0.00. Confirm that no delivery charge applies."))return;
+  const previousDelivery=order.delivery,previousFinal=order.finalRecharge;
+  order.delivery=+amount.toFixed(2);order.finalRecharge=+(Number(order.recharge||0)+order.delivery).toFixed(2);
+  confirmation.disabled=true;
+  try{await syncManagedOrderToSharePoint(order);save(STORAGE.orders,orders);confirmed=true;invoice.disabled=ace.disabled=recharged.disabled=false;message.textContent="Delivery charge confirmed. Final recharge: "+money(order.finalRecharge)+". Enter the invoice details and value recharged.";say("Delivery charge confirmed and saved to SharePoint.");invoice.dispatchEvent(new Event("input"))}
+  catch(error){order.delivery=previousDelivery;order.finalRecharge=previousFinal;confirmation.disabled=false;console.error(error);say("Delivery charge could not be confirmed in SharePoint: "+error.message,false)}
+ };
+ const preventUnconfirmed=event=>{if(confirmed)return;event.preventDefault();event.stopImmediatePropagation();say("Confirm the delivery charge before saving invoice or recharge details.",false)};
+ saveButton?.addEventListener("click",preventUnconfirmed,true);markButton?.addEventListener("click",preventUnconfirmed,true)
+};
 const aceManagedSyncCore=syncManagedOrderToSharePoint;
 syncManagedOrderToSharePoint=async order=>{const definition=await getListDefinition("WorkwearOrders"),column=matchColumn(definition.columns,["ACEInvoiceReference","ACE Invoice Reference"]);if(!column&&order.aceInvoiceReference)throw Error("WorkwearOrders needs a Single line of text column named ACE Invoice Reference before this field can be saved.");await aceManagedSyncCore(order);if(column)await updateSharePointItem("WorkwearOrders",order.sharePointItemId,[{aliases:["ACEInvoiceReference","ACE Invoice Reference"],value:order.aceInvoiceReference||""}])};
 updateFormSignIn();initialiseM365();
