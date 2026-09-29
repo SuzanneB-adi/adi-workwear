@@ -754,8 +754,8 @@ $("createReturn").onclick=async()=>{
  if(!manual&&lines.some(l=>!Number.isInteger(l.qty)||l.qty<1||l.qty>remainingReturnQty(order,l.index)))return say("Return quantity exceeds the remaining quantity on the order.",false);
  const deliveryCharge=replacement?Number($("returnDeliveryCharge").value):0;if(!Number.isFinite(deliveryCharge)||deliveryCharge<0)return say("Enter a valid extra delivery charge.",false);const now=new Date(),id="RT-"+now.getFullYear()+"-"+String(Date.now()).slice(-8),record={id,orderId:order?.id||"",company:manual?company:order.company,employee:manual?employee:order.first+" "+order.last,reason:[...lines,...(replacement?draftReplacements:[])].map(l=>l.item+": "+l.reason).join("; "),lines,replacements:replacement?draftReplacements.slice():[],replacementCharge:+draftReplacements.reduce((n,l)=>n+l.charge,0).toFixed(2),deliveryCharge:replacement?+deliveryCharge.toFixed(2):0,refundValue:replacement?0:+lines.reduce((n,l)=>n+l.refund,0).toFixed(2),refundedValue:0,refundReference:"",status:replacement?"Awaiting recharge":"Awaiting refund",createdAt:now.toISOString(),refundedAt:""};
  $("createReturn").disabled=true;
- try{await persistReturn(record);workwearReturns.unshift(record);returnSaveLocal();$("returnReason").value="";draftReplacements=[];draftManualReturns=[];$("returnDeliveryCharge").value="0";renderReturns();showReturnSection(replacement?"replacements":"returns");say(id+" saved to SharePoint.")}
- catch(error){console.error(error);say("Return was not saved: "+error.message,false)}
+ let persisted=false;try{await persistReturn(record);persisted=true;workwearReturns.unshift(record);returnSaveLocal();draftReplacements=[];draftManualReturns=[];$("returnDeliveryCharge").value="0";renderReturns();showReturnSection(replacement?"replacements":"returns");say(id+" saved to SharePoint.")}
+ catch(error){console.error(error);say(persisted?"Return "+id+" was saved to SharePoint, but the screen could not refresh: "+error.message:"Return could not be confirmed in SharePoint: "+error.message,false)}
  finally{$("createReturn").disabled=false}
 };
 
