@@ -650,5 +650,136 @@ openOrder=id=>{
 function workwearQuantityError(){for(const row of document.querySelectorAll('.item-row')){if(!row.querySelector('input[type="checkbox"]')?.checked)continue;const product=products.find(item=>item.id===row.dataset.id),input=row.querySelector('input[type="number"]'),value=Number(input?.value),limit=product?maxOrderQuantity(product):99;if(!Number.isInteger(value)||value<1||value>limit)return 'Enter a quantity from 1 to '+limit+' for '+(product?.name||'this item')+'.'}return ''}
 const quantityLimitedSubmitCore=$('submitOrder').onclick;
 $('submitOrder').onclick=()=>{const error=workwearQuantityError();if(error)return say(error,false);return quantityLimitedSubmitCore()};
+
+/* Returns are linked to ordered lines and stored separately from order approvals. */
+const RETURN_STORAGE_KEY="adi-workwear-returns-v1";
+let workwearReturns=load(RETURN_STORAGE_KEY,[]),draftReplacements=[],draftManualReturns=[];
+const returnSaveLocal=()=>save(RETURN_STORAGE_KEY,workwearReturns);
+function returnColumns(){return[
+{name:"OrderID",displayName:"Order ID",text:{}},{name:"Company",displayName:"Company",text:{}},
+{name:"Employee",displayName:"Employee",text:{}},{name:"Status",displayName:"Status",text:{}},
+{name:"ItemsJSON",displayName:"Items JSON",text:{allowMultipleLines:true}},
+{name:"RefundValue",displayName:"Refund Value",number:{}},{name:"ReplacementCharge",displayName:"Replacement Charge",number:{}},{name:"DeliveryCharge",displayName:"Delivery Charge",number:{}},{name:"ReplacementJSON",displayName:"Replacement JSON",text:{allowMultipleLines:true}},{name:"Reason",displayName:"Reason",text:{allowMultipleLines:true}},
+{name:"RefundedValue",displayName:"Refunded Value",number:{}},
+{name:"RefundReference",displayName:"Refund Reference",text:{}},
+{name:"CreatedAt",displayName:"Created At",dateTime:{format:"dateTime"}},
+{name:"RefundedAt",displayName:"Refunded At",dateTime:{format:"dateTime"}}]}
+async function ensureReturnsList(){
+ let list;
+ try{list=await findSharePointList("WorkwearReturns")}
+ catch(error){
+  if(!/list was not found/i.test(error.message))throw error;
+  try{await graphRequest("/sites/"+M365_CONFIG.siteId+"/lists",{method:"POST",body:JSON.stringify({displayName:"WorkwearReturns",list:{template:"genericList"}})});list=await findSharePointList("WorkwearReturns")}
+  catch(createError){throw Error("WorkwearReturns list is missing. A SharePoint site owner must create it or allow the app to create lists. "+createError.message)}
+ }
+ delete listDefinitionCache.WorkwearReturns;
+ let def=await getListDefinition("WorkwearReturns");
+ for(const column of returnColumns()){
+  if(matchColumn(def.columns,[column.name,column.displayName]))continue;
+  try{await graphRequest("/sites/"+M365_CONFIG.siteId+"/lists/"+def.id+"/columns",{method:"POST",body:JSON.stringify(column)})}
+  catch(error){throw Error("WorkwearReturns needs the "+column.displayName+" column. "+error.message)}
+ }
+ delete listDefinitionCache.WorkwearReturns;
+ return getListDefinition("WorkwearReturns")
+}
+function returnFields(record){return [
+{aliases:["Title"],value:record.id},{aliases:["OrderID","Order ID"],value:record.orderId},
+{aliases:["Company"],value:record.company},{aliases:["Employee"],value:record.employee},
+{aliases:["Status"],value:record.status},{aliases:["ItemsJSON","Items JSON"],value:JSON.stringify(record.lines)},
+{aliases:["RefundValue","Refund Value"],value:record.refundValue},{aliases:["ReplacementCharge","Replacement Charge"],value:record.replacementCharge||0},{aliases:["DeliveryCharge","Delivery Charge"],value:record.deliveryCharge||0},{aliases:["ReplacementJSON","Replacement JSON"],value:JSON.stringify(record.replacements||[])},{aliases:["Reason"],value:record.reason||""},
+{aliases:["RefundedValue","Refunded Value"],value:record.refundedValue||0},
+{aliases:["RefundReference","Refund Reference"],value:record.refundReference||""},
+{aliases:["CreatedAt","Created At"],value:record.createdAt},
+{aliases:["RefundedAt","Refunded At"],value:record.refundedAt||null}]}
+async function persistReturn(record){
+ await ensureM365Write();await ensureReturnsList();
+ const rows=await getListItems("WorkwearReturns"),existing=rows.find(row=>String(fieldValue(row.fields||{},["Title"]))===record.id);
+ const saved=await upsertCatalogueRecord("WorkwearReturns",existing,returnFields(record));
+ record.sharePointItemId=String(saved.id||existing?.id||"");
+ const verify=(await getListItems("WorkwearReturns")).find(row=>String(fieldValue(row.fields||{},["Title"]))===record.id);
+ if(!verify||String(fieldValue(verify.fields||{},["Status"]))!==record.status)throw Error("Return status could not be confirmed in SharePoint.");
+}
+async function loadReturnsFromSharePoint(){
+ try{const rows=await getListItems("WorkwearReturns");workwearReturns=rows.map(row=>{
+ const f=row.fields||{};let lines=[];try{lines=JSON.parse(fieldValue(f,["ItemsJSON","Items JSON"])||"[]")}catch{}
+ let replacements=[];try{replacements=JSON.parse(fieldValue(f,["ReplacementJSON","Replacement JSON"])||"[]")}catch{}return{id:String(fieldValue(f,["Title"])),orderId:String(fieldValue(f,["OrderID","Order ID"])),company:String(fieldValue(f,["Company"])),employee:String(fieldValue(f,["Employee"])),status:String(fieldValue(f,["Status"]))||"Awaiting refund",lines,replacements,reason:String(fieldValue(f,["Reason"])),replacementCharge:Number(fieldValue(f,["ReplacementCharge","Replacement Charge"]))||0,deliveryCharge:Number(fieldValue(f,["DeliveryCharge","Delivery Charge"]))||0,refundValue:Number(fieldValue(f,["RefundValue","Refund Value"]))||0,refundedValue:Number(fieldValue(f,["RefundedValue","Refunded Value"]))||0,refundReference:String(fieldValue(f,["RefundReference","Refund Reference"])),createdAt:String(fieldValue(f,["CreatedAt","Created At"])),refundedAt:String(fieldValue(f,["RefundedAt","Refunded At"])),sharePointItemId:String(row.id)}}).filter(r=>r.id);returnSaveLocal();renderReturns();renderBusinessDashboard()}
+ catch(error){if(!/list was not found/i.test(error.message))throw error;workwearReturns=[];returnSaveLocal();renderReturns()}
+}
+const returnsAccessCore=loadM365Access;
+loadM365Access=async()=>{await returnsAccessCore();try{await loadReturnsFromSharePoint()}catch(error){console.error(error);say("Returns could not be loaded from SharePoint: "+error.message,false)}};
+const returnsView=document.createElement("section");returnsView.id="returnsView";returnsView.className="view hidden";
+returnsView.innerHTML='<div class="view-title"><div><h2>Workwear returns</h2><p>Record a return from an order or manually, including replacements and delivery charges.</p></div></div><section class="panel"><div class="panel-head"><h3>New return</h3></div><div class="panel-body"><div class="grid"><div class="field"><label>Return type</label><select id="returnType"><option value="order">From an order</option><option value="manual">Manual return</option></select></div><div class="field"><label>Original order</label><select id="returnOrder"></select></div><div class="field"><label>Employee</label><input id="returnEmployee" disabled></div><div class="field"><label>adi company</label><select id="returnCompany" disabled></select></div><div class="field"><label>Reason for return</label><input id="returnReason" placeholder="Enter the reason"></div></div><div class="table-wrap"><table><thead><tr><th>Return</th><th>Item</th><th>Size</th><th>Ordered</th><th>Return quantity</th><th>Unit refund</th><th>Refund</th></tr></thead><tbody id="returnLines"></tbody></table></div><div class="grid"><div class="field"><label>Replacement item</label><select id="replacementItem"></select></div><div class="field"><label>Replacement size</label><select id="replacementSize"></select></div><div class="field"><label>Replacement quantity</label><input id="replacementQty" type="number" min="1" value="1"></div><div class="field"><label>Extra delivery charge to recharge</label><input id="returnDeliveryCharge" type="number" min="0" step="0.01" value="0"></div></div><button class="btn small" type="button" id="addReplacement">Add replacement item</button><div id="replacementLines"></div><div id="manualReturnPicker" class="hidden"><div class="grid"><div class="field"><label>Returned item</label><select id="manualReturnItem"></select></div><div class="field"><label>Size</label><select id="manualReturnSize"></select></div><div class="field"><label>Quantity</label><input id="manualReturnQty" type="number" min="1" value="1"></div></div><button type="button" class="btn small" id="addManualReturn">Add returned item</button><div id="manualReturnLines"></div></div><p><strong>Items refund: <span id="returnTotal">£0.00</span></strong> &nbsp; Replacement and delivery charge: <strong id="replacementTotal">£0.00</strong></p><button class="btn primary" id="createReturn">Save return</button></div></section><section class="panel"><div class="panel-head"><h3>Returns and refunds</h3></div><div class="table-wrap"><table><thead><tr><th>Return</th><th>Order</th><th>Employee</th><th>Status</th><th>Items refund</th><th>New charges</th><th>Net adjustment</th><th>Refund reference</th><th>Action</th></tr></thead><tbody id="returnsBody"></tbody></table></div></section>';
+$("managementView").before(returnsView);
+const returnsNav=document.createElement("button");returnsNav.dataset.view="returns";returnsNav.textContent="Returns";
+document.querySelector('.nav button[data-view="management"]').after(returnsNav);
+returnsNav.onclick=()=>secureNavigate("returns");
+function remainingReturnQty(order,index){const line=order.lines[index];return Math.max(0,Number(line.qty||0)-workwearReturns.filter(r=>r.orderId===order.id).reduce((sum,r)=>sum+(r.lines||[]).filter(l=>Number(l.index)===index).reduce((n,l)=>n+Number(l.qty||0),0),0))}
+function returnUnitRefund(order,line){const base=Number(line.unitPrice)||0,total=Number(order.cost)||0,recharge=Number(order.finalRecharge)||0;return total>0?+(base*recharge/total).toFixed(2):+(base*1.1).toFixed(2)}
+function renderReturnType(){const manual=$("returnType").value==="manual";$("returnOrder").closest(".field").classList.toggle("hidden",manual);$("manualReturnPicker").classList.toggle("hidden",!manual);$("returnLines").closest(".table-wrap").classList.toggle("hidden",manual);$("returnEmployee").disabled=!manual;$("returnCompany").disabled=!manual;renderReturnLines();renderManualReturnDraft()}
+function renderReturnLines(){
+ const order=orders.find(o=>o.id===$("returnOrder").value);
+ if($("returnType").value!=="manual"){$("returnEmployee").value=order?order.first+" "+order.last:"";$("returnCompany").value=order?.company||"";}
+ $("returnLines").innerHTML=order?(order.lines||[]).map((line,index)=>{const max=remainingReturnQty(order,index),unit=returnUnitRefund(order,line);return '<tr data-return-index="'+index+'"><td><input type="checkbox" '+(max?'':'disabled')+'></td><td>'+esc(line.item)+'</td><td>'+esc(line.size)+'</td><td>'+esc(line.qty)+'</td><td><input type="number" min="1" max="'+max+'" value="1" style="width:75px" '+(max?'':'disabled')+'></td><td>'+money(unit)+'</td><td class="return-line-total">£0.00</td></tr>'}).join(""):'<tr><td colspan="7">Choose an ordered workwear request.</td></tr>';
+ $("returnLines").querySelectorAll("input").forEach(input=>input.oninput=input.onchange=updateReturnTotal);updateReturnTotal()
+}
+function selectedReturnLines(){if($("returnType").value==="manual")return draftManualReturns.slice();
+ const order=orders.find(o=>o.id===$("returnOrder").value);if(!order)return[];
+ return [...$("returnLines").querySelectorAll("[data-return-index]")].filter(row=>row.querySelector('[type="checkbox"]').checked).map(row=>{const index=Number(row.dataset.returnIndex),line=order.lines[index],qty=Number(row.querySelector('[type="number"]').value),unitRefund=returnUnitRefund(order,line);return{index,item:line.item,size:line.size,qty,unitRefund,refund:+(qty*unitRefund).toFixed(2)}})
+}
+function updateReturnTotal(){const lines=selectedReturnLines();$("returnTotal").textContent=money(lines.reduce((sum,line)=>sum+line.refund,0));$("returnLines").querySelectorAll("[data-return-index]").forEach(row=>{const line=lines.find(l=>l.index===Number(row.dataset.returnIndex));row.querySelector(".return-line-total").textContent=money(line?.refund||0)})}
+function renderManualReturnChoices(){const current=$("manualReturnItem").value;$("manualReturnItem").innerHTML='<option value="">Choose item</option>'+products.filter(p=>p.active).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");$("manualReturnItem").value=current;const p=products.find(p=>p.id===current);$("manualReturnSize").innerHTML=p?Object.keys(p.prices).map(size=>'<option>'+esc(size)+'</option>').join(""):""}
+function renderManualReturnDraft(){$("manualReturnLines").innerHTML=draftManualReturns.map((l,i)=>'<p>'+esc(l.item+" — "+l.size+" × "+l.qty)+" — "+money(l.refund)+' <button class="btn small" data-remove-manual="'+i+'">Remove</button></p>').join("");$("manualReturnLines").querySelectorAll("[data-remove-manual]").forEach(b=>b.onclick=()=>{draftManualReturns.splice(Number(b.dataset.removeManual),1);renderManualReturnDraft();updateReturnTotal()});updateReturnTotal()}
+$("manualReturnItem").onchange=renderManualReturnChoices;$("addManualReturn").onclick=()=>{const p=products.find(x=>x.id===$("manualReturnItem").value),size=$("manualReturnSize").value,qty=Number($("manualReturnQty").value);if(!p||!size||!Number.isInteger(qty)||qty<1)return say("Choose an item, size and valid quantity.",false);const unitRefund=+(Number(p.prices[size]||0)*1.1).toFixed(2);draftManualReturns.push({index:draftManualReturns.length,item:p.name,size,qty,unitRefund,refund:+(qty*unitRefund).toFixed(2)});renderManualReturnDraft()};
+function renderReplacementChoices(){const current=$("replacementItem").value;$("replacementItem").innerHTML='<option value="">Choose replacement item</option>'+products.filter(p=>p.active).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");$("replacementItem").value=current;$("replacementSize").innerHTML=products.find(p=>p.id===current)?Object.keys(products.find(p=>p.id===current).prices).map(size=>'<option>'+esc(size)+'</option>').join(""):""}
+function renderReplacementDraft(){const charge=draftReplacements.reduce((n,l)=>n+l.charge,0)+Number($("returnDeliveryCharge").value||0);$("replacementTotal").textContent=money(charge);$("replacementLines").innerHTML=draftReplacements.map((l,i)=>'<p>'+esc(l.item+" — "+l.size+" × "+l.qty)+" — "+money(l.charge)+' <button class="btn small" data-remove-replacement="'+i+'">Remove</button></p>').join("");$("replacementLines").querySelectorAll("[data-remove-replacement]").forEach(b=>b.onclick=()=>{draftReplacements.splice(Number(b.dataset.removeReplacement),1);renderReplacementDraft()})}
+$("replacementItem").onchange=renderReplacementChoices;$("returnDeliveryCharge").oninput=renderReplacementDraft;$("addReplacement").onclick=()=>{const p=products.find(x=>x.id===$("replacementItem").value),size=$("replacementSize").value,qty=Number($("replacementQty").value);if(!p||!size||!Number.isInteger(qty)||qty<1||qty>maxOrderQuantity(p))return say("Choose an item, size and valid replacement quantity.",false);const unit=Number(p.prices[size]||0);draftReplacements.push({productId:p.id,item:p.name,size,qty,unitPrice:unit,charge:+(unit*qty*1.1).toFixed(2)});renderReplacementDraft()};
+function renderReturns(){
+ if(!$("returnOrder"))return;
+ renderReplacementChoices();renderReplacementDraft();renderManualReturnChoices();$("returnCompany").innerHTML='<option value="">Choose company</option>'+companies.map(c=>'<option>'+esc(c)+'</option>').join("");
+ const current=$("returnOrder").value;
+ $("returnOrder").innerHTML='<option value="">Choose an order</option>'+orders.filter(o=>["Ordered","Recharged"].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.id+" — "+o.first+" "+o.last)+'</option>').join("");
+ $("returnOrder").value=current;$("returnOrder").onchange=renderReturnLines;$("returnType").onchange=renderReturnType;renderReturnType();
+ $("returnsBody").innerHTML=workwearReturns.length?workwearReturns.map(r=>'<tr><td>'+esc(r.id)+'</td><td>'+esc(r.orderId)+'</td><td>'+esc(r.employee)+'</td><td>'+esc(r.status)+'</td><td>'+money(r.refundValue)+'</td><td>'+money((r.replacementCharge||0)+(r.deliveryCharge||0))+'</td><td>'+money((r.replacementCharge||0)+(r.deliveryCharge||0)-r.refundValue)+'</td><td>'+esc(r.refundReference||"—")+'</td><td>'+(r.status==="Awaiting refund"?'<button class="btn small" data-refund="'+esc(r.id)+'">Mark refunded</button>':money(r.refundedValue))+'</td></tr>').join(""):'<tr><td colspan="9">No returns recorded.</td></tr>';
+ $("returnsBody").querySelectorAll("[data-refund]").forEach(button=>button.onclick=()=>markReturnRefunded(button.dataset.refund))
+}
+$("createReturn").onclick=async()=>{
+ if(!canOpenView("returns"))return say("You do not have access to returns.",false);
+ const manual=$("returnType").value==="manual",order=manual?null:orders.find(o=>o.id===$("returnOrder").value),lines=selectedReturnLines(),reason=$("returnReason").value.trim(),employee=$("returnEmployee").value.trim(),company=$("returnCompany").value;
+ if((!manual&&!order)||(manual&&(!employee||!company))||(!lines.length&&!draftReplacements.length)||!reason)return say("Choose an order, at least one returned or replacement item, and enter the reason.",false);
+ if(!manual&&lines.some(l=>!Number.isInteger(l.qty)||l.qty<1||l.qty>remainingReturnQty(order,l.index)))return say("Return quantity exceeds the remaining quantity on the order.",false);
+ const deliveryCharge=Number($("returnDeliveryCharge").value);if(!Number.isFinite(deliveryCharge)||deliveryCharge<0)return say("Enter a valid extra delivery charge.",false);const now=new Date(),id="RT-"+now.getFullYear()+"-"+String(Date.now()).slice(-8),record={id,orderId:order?.id||"",company:manual?company:order.company,employee:manual?employee:order.first+" "+order.last,reason,lines,replacements:draftReplacements.slice(),replacementCharge:+draftReplacements.reduce((n,l)=>n+l.charge,0).toFixed(2),deliveryCharge:+deliveryCharge.toFixed(2),refundValue:+lines.reduce((n,l)=>n+l.refund,0).toFixed(2),refundedValue:0,refundReference:"",status:"Awaiting refund",createdAt:now.toISOString(),refundedAt:""};
+ $("createReturn").disabled=true;
+ try{await persistReturn(record);workwearReturns.unshift(record);returnSaveLocal();$("returnReason").value="";draftReplacements=[];draftManualReturns=[];$("returnDeliveryCharge").value="0";renderReturns();say(id+" saved to SharePoint.")}
+ catch(error){console.error(error);say("Return was not saved: "+error.message,false)}
+ finally{$("createReturn").disabled=false}
+};
+async function markReturnRefunded(id){
+ if(!canOpenView("returns"))return;
+ const record=workwearReturns.find(r=>r.id===id);if(!record)return;
+ const reference=prompt("Enter the refund or credit note reference for "+id+":",record.refundReference||"");if(reference===null)return;
+ if(!reference.trim())return say("Enter a refund reference before marking this return refunded.",false);
+ const amountText=prompt("Confirm the refunded amount:",record.refundValue.toFixed(2));if(amountText===null)return;
+ const amount=Number(amountText);if(!Number.isFinite(amount)||Math.abs(amount-record.refundValue)>0.009)return say("The refunded amount must equal "+money(record.refundValue)+".",false);
+ const updated={...record,status:"Refunded",refundedValue:record.refundValue,refundReference:reference.trim(),refundedAt:new Date().toISOString()};
+ try{await persistReturn(updated);Object.assign(record,updated);returnSaveLocal();renderReturns();renderBusinessDashboard();say(id+" marked refunded.")}
+ catch(error){console.error(error);say("Refund was not saved: "+error.message,false)}
+}
+const returnsDashboardCore=renderBusinessDashboard;
+renderBusinessDashboard=()=>{
+ returnsDashboardCore();
+ const settledReturns=workwearReturns.filter(r=>r.status==="Refunded"),refund=settledReturns.reduce((n,r)=>n+Number(r.refundedValue||0),0),charges=settledReturns.reduce((n,r)=>n+Number(r.replacementCharge||0)+Number(r.deliveryCharge||0),0);
+ const group=$("groupDashboard");
+ if(group){const card=[...group.querySelectorAll(".dashboard-card")].find(el=>el.querySelector("span")?.textContent==="Value recharged");if(card)card.querySelector("strong").textContent=money(orders.reduce((n,o)=>n+actualRecharge(o),0)-refund+charges);group.insertAdjacentHTML("beforeend",'<div class="dashboard-card"><span>Returns refunded</span><strong>'+money(refund)+'</strong></div>')}
+ group?.insertAdjacentHTML("beforeend",'<div class="dashboard-card"><span>Replacement and delivery charges</span><strong>'+money(charges)+'</strong></div>');const companyRows=$("companyDashboard")?.querySelectorAll("tr")||[];
+ companyRows.forEach(row=>{const company=row.cells[0]?.textContent,companyRefund=workwearReturns.filter(r=>r.company===company&&r.status==="Refunded").reduce((n,r)=>n+Number(r.refundedValue||0)-Number(r.replacementCharge||0)-Number(r.deliveryCharge||0),0),cell=row.cells[row.cells.length-1];if(cell)cell.textContent=money(orders.filter(o=>o.company===company).reduce((n,o)=>n+actualRecharge(o),0)-companyRefund)});
+};
+const returnsGraphCore=renderDashboardGraph;
+renderDashboardGraph=()=>{returnsGraphCore();const refundByCompany=new Map();workwearReturns.filter(r=>r.status==="Refunded").forEach(r=>refundByCompany.set(r.company,(refundByCompany.get(r.company)||0)+Number(r.refundedValue||0)-Number(r.replacementCharge||0)-Number(r.deliveryCharge||0)));$("companySpendChart")?.querySelectorAll(".chart-row").forEach(row=>{const company=row.querySelector(".chart-label")?.textContent,refund=refundByCompany.get(company)||0;if(!refund)return;const value=row.querySelector(".chart-value");if(value){const orderRows=orders.filter(o=>o.company===company);value.innerHTML=money(orderRows.reduce((n,o)=>n+Number(o.cost||0),0))+"<br>"+money(orderRows.reduce((n,o)=>n+actualRecharge(o),0)-refund)}})};
+const returnsMenuCore=permissionsForRole;
+permissionsForRole=role=>({...returnsMenuCore(role),returns:["workwear manager","workwear admin","system admin"].includes(roleKey(role))});
+const returnsShowCore=showView;
+showView=view=>{if(view==="returns"){if(!canOpenView("returns"))return;renderReturns()}returnsShowCore(view)};
+applyMenuPermissions();
+
 initialiseM365();
 </script></body></html>
