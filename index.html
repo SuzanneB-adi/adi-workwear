@@ -764,14 +764,16 @@ rechargeView.innerHTML='<div class="view-title"><div><h2>Recharge and refunds</h
 $("managementView").before(rechargeView);
 const rechargeNav=document.createElement("button");rechargeNav.dataset.view="recharge";rechargeNav.textContent="Recharge";returnsNav.after(rechargeNav);rechargeNav.onclick=()=>secureNavigate("recharge");
 let rechargeReturnOrderId="";
+function canManageRecharge(){return ["workwear manager","workwear admin","system admin"].includes(roleKey(currentAccess.role))}
 function renderRecharge(){
  $("rechargeListPanel").classList.remove("hidden");$("rechargeDetailPanel").classList.add("hidden");
  const orderRows=orders.filter(o=>String(o.status?.Value||o.status||"").trim().toLowerCase()==="ordered").map(o=>'<tr><td><button class="link-btn" data-recharge-order="'+esc(o.id)+'">'+esc(o.id)+'</button></td><td>Original order</td><td>'+esc(o.first+" "+o.last)+'</td><td>'+esc(o.company)+'</td><td>'+esc(o.status)+'</td><td>'+money(o.finalRecharge||0)+'</td><td><button class="link-btn" data-recharge-order="'+esc(o.id)+'">Open order</button></td></tr>');
  const returnRows=workwearReturns.filter(r=>{const status=String(r.status?.Value||r.status||"").trim().toLowerCase();return isReplacementRecord(r)?status==="awaiting recharge"&&Number(r.replacementCharge||0)+Number(r.deliveryCharge||0)>0:status==="awaiting refund"&&Number(r.refundValue||0)>0}).map(r=>'<tr><td><button class="link-btn" data-recharge-return="'+esc(r.id)+'">'+esc(r.id)+'</button></td><td>'+(isReplacementRecord(r)?"Replacement":"Return")+'</td><td>'+esc(r.employee)+'</td><td>'+esc(r.company)+'</td><td>'+esc(r.status)+'</td><td>'+money(isReplacementRecord(r)?Number(r.replacementCharge||0)+Number(r.deliveryCharge||0):-Number(r.refundValue||0))+'</td><td><button class="link-btn" data-recharge-return="'+esc(r.id)+'">Open details</button></td></tr>');
  $("rechargeRows").innerHTML=[...orderRows,...returnRows].join("")||'<tr><td colspan="7">No transactions recorded.</td></tr>';
- $("rechargeRows").querySelectorAll("[data-recharge-order]").forEach(b=>b.onclick=async()=>{rechargeReturnOrderId=b.dataset.rechargeOrder;await secureNavigate("management");openOrder(b.dataset.rechargeOrder);$("backOrders").textContent="Back to all transactions"});
+ $("rechargeRows").querySelectorAll("[data-recharge-order]").forEach(b=>b.onclick=async()=>{if(!canManageRecharge())return openRechargeOrderReadOnly(b.dataset.rechargeOrder);rechargeReturnOrderId=b.dataset.rechargeOrder;await secureNavigate("management");openOrder(b.dataset.rechargeOrder);$("backOrders").textContent="Back to all transactions"});
  $("rechargeRows").querySelectorAll("[data-recharge-return]").forEach(b=>b.onclick=()=>openRechargeRecord(b.dataset.rechargeReturn));
 }
+function openRechargeOrderReadOnly(id){const o=orders.find(order=>order.id===id);if(!o)return;$("rechargeListPanel").classList.add("hidden");$("rechargeDetailPanel").classList.remove("hidden");$("rechargeDetailTitle").textContent=o.id+" — Original order";$("rechargeDetail").innerHTML='<p><strong>Employee:</strong> '+esc(o.first+" "+o.last)+' &nbsp; <strong>Company:</strong> '+esc(o.company)+' &nbsp; <strong>Status:</strong> '+esc(o.status)+'</p><div class="table-wrap"><table><thead><tr><th>Item</th><th>Size</th><th>Quantity</th><th>Line value</th></tr></thead><tbody>'+(o.lines||[]).map(line=>'<tr><td>'+esc(line.item)+'</td><td>'+esc(line.size)+'</td><td>'+esc(line.qty)+'</td><td>'+money(line.lineTotal||0)+'</td></tr>').join("")+'</tbody></table></div><p><strong>Calculated recharge: '+money(o.finalRecharge||0)+'</strong></p>'}
 $("backRecharge").onclick=renderRecharge;
 function openRechargeRecord(id){
  if(!canOpenView("recharge"))return;
@@ -780,9 +782,11 @@ function openRechargeRecord(id){
  const replacement=isReplacementRecord(r),items=[...(r.lines||[]).map(l=>({...l,kind:"Returned item"})),...(r.replacements||[]).map(l=>({...l,kind:"Replacement item"}))];
  $("rechargeDetailTitle").textContent=r.id+" — "+(replacement?"Replacement":"Return");
  $("rechargeDetail").innerHTML='<p><strong>Employee:</strong> '+esc(r.employee)+' &nbsp; <strong>Company:</strong> '+esc(r.company)+' &nbsp; <strong>Original order:</strong> '+esc(r.orderId||"Manual")+'</p><div class="table-wrap"><table><thead><tr><th>Type</th><th>Item</th><th>Size</th><th>Qty</th><th>Reason</th></tr></thead><tbody>'+items.map(l=>'<tr><td>'+esc(l.kind)+'</td><td>'+esc(l.item)+'</td><td>'+esc(l.size)+'</td><td>'+esc(l.qty)+'</td><td>'+esc(l.reason||r.reason||"—")+'</td></tr>').join("")+'</tbody></table></div><div class="grid"><div class="field"><label>'+(replacement?"Replacement recharge value":"Refund value")+'</label><input id="transactionAmount" type="number" min="0" step="0.01" value="'+Number(replacement?r.replacementCharge:r.refundValue).toFixed(2)+'"></div>'+(replacement?'<div class="field"><label>Extra delivery recharge</label><input id="transactionDelivery" type="number" min="0" step="0.01" value="'+Number(r.deliveryCharge||0).toFixed(2)+'"></div>':'')+'<div class="field"><label>'+(replacement?"adi invoice or recharge reference":"Credit note or refund reference")+'</label><input id="transactionReference" value="'+esc(r.refundReference||"")+'"></div></div><p><strong>Total '+(replacement?"additional recharge":"refund")+': <span id="transactionTotal"></span></strong></p><div class="actions"><button class="btn" id="saveTransaction">Save adjustment</button><button class="btn primary" id="completeTransaction">'+(replacement?"Mark recharged":"Mark refunded")+'</button></div>';
+ if(!canManageRecharge()){$("rechargeDetail").querySelectorAll("input").forEach(input=>input.disabled=true);$("saveTransaction").remove();$("completeTransaction").remove()}
  const update=()=>{$("transactionTotal").textContent=money(Number($("transactionAmount").value||0)+(replacement?Number($("transactionDelivery").value||0):0))};
  $("transactionAmount").oninput=update;if(replacement)$("transactionDelivery").oninput=update;update();
  async function saveTransaction(complete){
+  if(!canManageRecharge())return say("This profile has read-only Recharge access.",false);
   const amount=Number($("transactionAmount").value),delivery=replacement?Number($("transactionDelivery").value):0,reference=$("transactionReference").value.trim();
   if(!Number.isFinite(amount)||amount<0||!Number.isFinite(delivery)||delivery<0)return say("Enter valid non-negative amounts.",false);
   if(complete&&!reference)return say("Enter the invoice or credit note reference before completing this transaction.",false);
@@ -792,7 +796,7 @@ function openRechargeRecord(id){
   try{await persistReturn(updated);Object.assign(r,updated);returnSaveLocal();renderReturns();renderBusinessDashboard();renderRecharge();if(complete)say(id+(replacement?" marked recharged.":" marked refunded."));else{say(id+" adjustment saved.");openRechargeRecord(id)}}
   catch(error){console.error(error);say("Transaction was not saved: "+error.message,false);$("saveTransaction").disabled=$("completeTransaction").disabled=false}
  }
- $("saveTransaction").onclick=()=>saveTransaction(false);$("completeTransaction").onclick=()=>saveTransaction(true)
+ if(canManageRecharge()){$("saveTransaction").onclick=()=>saveTransaction(false);$("completeTransaction").onclick=()=>saveTransaction(true)}
 }
 function settledReturnValue(record){return !isReplacementRecord(record)&&record.status==="Refunded"?Number(record.refundedValue||0):0}
 function settledReplacementValue(record){return isReplacementRecord(record)&&["Recharged","Refunded"].includes(record.status)?Number(record.replacementCharge||0)+Number(record.deliveryCharge||0):0}
@@ -809,7 +813,7 @@ renderDashboardGraph=()=>{
  $("companySpendChart").innerHTML=rows.length?rows.map(row=>'<div class="chart-row"><div class="chart-label">'+esc(row.company)+'</div><div class="chart-bars"><div class="chart-bar spend" title="Expenditure '+money(row.spend)+'" style="width:'+Math.max(1,row.spend/max*100)+'%"></div><div class="chart-bar recharged" title="Net recharged '+money(row.recharged)+'" style="width:'+Math.max(1,Math.max(0,row.recharged)/max*100)+'%"></div><div class="chart-bar returned" title="Returned '+money(row.returned)+'" style="width:'+Math.max(1,row.returned/max*100)+'%"></div></div><div class="chart-value">'+money(row.spend)+'<br>'+money(row.recharged)+'<br>'+money(row.returned)+'</div></div>').join(""):'<div class="chart-empty">The graph will appear when orders or returns have been recorded.</div>';
 };
 const returnsMenuCore=permissionsForRole;
-permissionsForRole=role=>({...returnsMenuCore(role),returns:["workwear manager","workwear admin","system admin"].includes(roleKey(role)),recharge:["workwear manager","workwear admin","system admin"].includes(roleKey(role))});
+permissionsForRole=role=>({...returnsMenuCore(role),returns:["workwear manager","workwear admin","system admin"].includes(roleKey(role)),recharge:["request user","workwear manager","workwear admin","system admin"].includes(roleKey(role))});
 const returnsShowCore=showView;
 showView=view=>{if(new URLSearchParams(location.search).get("embed")==="1"&&view!=="order")return returnsShowCore("order");if(view==="returns"){if(!canOpenView("returns"))return;renderReturns()}if(view==="recharge"){if(!canOpenView("recharge"))return;renderRecharge()}returnsShowCore(view);if(view==="recharge"&&m365Token)refreshOrdersFromSharePoint(true)};
 const rechargeRefreshCore=refreshOrdersFromSharePoint;
