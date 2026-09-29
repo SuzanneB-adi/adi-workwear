@@ -154,7 +154,7 @@ protectedViews.add("dashboard");
 dashboardView.appendChild($("managementView").querySelector(".metrics"));
 dashboardView.appendChild($("businessDashboard"));
 const dashboardShowView=showView;
-showView=view=>{if(view==="dashboard"&&sessionStorage.getItem(AUTH_SESSION)==="yes")renderOrders();dashboardShowView(view)};
+showView=view=>{if(view==="dashboard"&&!canOpenView("dashboard"))return;if(view==="dashboard"&&sessionStorage.getItem(AUTH_SESSION)==="yes")renderOrders();dashboardShowView(view)};
 dashboardNav.onclick=()=>secureNavigate("dashboard");
 
 /* Admin submenus, dated stock checks and bulk replenishment database. */
@@ -324,7 +324,7 @@ let currentAccess={role:"",email:"",companies:[],canDelete:false},sharePointUser
 const roleKey=value=>String(value||"").trim().toLowerCase().replace(/\s+/g," ");
 function fieldValue(fields,names){for(const name of names){if(fields?.[name]!==undefined&&fields[name]!==null)return fields[name]}const keyOf=value=>String(value).replace(/_x[0-9a-f]{4}_/gi,"").toLowerCase().replace(/[^a-z0-9]/g,""),wanted=names.map(keyOf);if(wanted.includes("mdname"))wanted.push("md","managingdirectorname");for(const [key,value] of Object.entries(fields||{})){if(value!==undefined&&value!==null&&wanted.includes(keyOf(key)))return value}return""}
 function boolValue(value){return value===true||value===1||String(value).toLowerCase()==="yes"||String(value).toLowerCase()==="true"}
-function permissionsForRole(role){const r=roleKey(role);return{dashboard:["md","workwear manager","system admin"].includes(r),approvals:["md","workwear manager","system admin"].includes(r),management:["md","hr access","workwear manager","workwear admin","system admin"].includes(r),admin:["workwear manager","system admin"].includes(r),systemAdmin:r==="system admin"}}
+function permissionsForRole(role){const r=roleKey(role);return{dashboard:["workwear manager","system admin"].includes(r),approvals:["md","workwear manager","system admin"].includes(r),management:["md","hr access","workwear manager","workwear admin","system admin"].includes(r),admin:["workwear manager","system admin"].includes(r),systemAdmin:r==="system admin"}}
 function canOpenView(view){if(view==="order")return true;return !!permissionsForRole(currentAccess.role)[view]}
 function applyMenuPermissions(){document.querySelectorAll('.nav button[data-view]').forEach(button=>button.classList.toggle('hidden',!canOpenView(button.dataset.view)));if(!canOpenView(document.querySelector('.nav button.active')?.dataset.view||"order"))displayView("order")}
 const permissionNavigateCore=secureNavigate;secureNavigate=async view=>{if(!m365Token&&view!=="order"){say("Sign in with Microsoft to access this area.",false);return}if(!canOpenView(view)){say("Your Workwear role does not give access to this area.",false);return}displayView(view)};
