@@ -868,7 +868,7 @@ openOrder=id=>{
  if(!order||!panel||!canManageRecharge())return;
  if(input){input.disabled=false;const aceField=$("detailAceInvoiceReference")?.closest(".field");aceField?.after(input.closest(".field"))}
  const guard=event=>{const button=event.target.closest("button"),targetStatus=$("detailStatus")?.value;if(button&&(button.textContent.trim()==="Mark as ordered"||(button.id==="saveOrder"&&targetStatus==="Ordered"&&order.status!=="Ordered"))&&!input?.value.trim()){event.preventDefault();event.stopImmediatePropagation();say("Enter adi order to ace before marking this request as ordered.",false)}};
- $("orderDetailPanel").addEventListener("click",guard,{capture:true});
+ const detailPanel=$("orderDetailPanel");if(detailPanel.aceOrderGuard)detailPanel.removeEventListener("click",detailPanel.aceOrderGuard,true);detailPanel.aceOrderGuard=guard;detailPanel.addEventListener("click",guard,{capture:true});
  if(notes){notes.disabled=false;const button=document.createElement("button");button.type="button";button.className="btn small";button.textContent="Save notes";notes.after(button);button.onclick=async()=>{
   button.disabled=true;try{await ensureM365Write();if(!order.sharePointItemId)throw Error("Refresh orders from SharePoint before saving notes.");await updateSharePointItem("WorkwearOrders",order.sharePointItemId,[{aliases:["Notes"],value:notes.value}]);order.notes=notes.value;save(STORAGE.orders,orders);say("Notes saved to SharePoint.")}
   catch(error){say("Notes were not saved: "+error.message,false)}finally{button.disabled=false}
