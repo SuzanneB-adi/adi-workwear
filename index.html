@@ -778,9 +778,9 @@ function renderRecharge(){
 function openRechargeOrderReadOnly(id){const o=orders.find(order=>order.id===id);if(!o)return;$("rechargeListPanel").classList.add("hidden");$("rechargeDetailPanel").classList.remove("hidden");$("rechargeDetailTitle").textContent=o.id+" — Original order";$("rechargeDetail").innerHTML='<p><strong>Employee:</strong> '+esc(o.first+" "+o.last)+' &nbsp; <strong>Company:</strong> '+esc(o.company)+' &nbsp; <strong>Status:</strong> '+esc(o.status)+'</p><div class="table-wrap"><table><thead><tr><th>Item</th><th>Size</th><th>Quantity</th><th>Line value</th></tr></thead><tbody>'+(o.lines||[]).map(line=>'<tr><td>'+esc(line.item)+'</td><td>'+esc(line.size)+'</td><td>'+esc(line.qty)+'</td><td>'+money(line.lineTotal||0)+'</td></tr>').join("")+'</tbody></table></div><p><strong>Calculated recharge: '+money(o.finalRecharge||0)+'</strong></p>'}
 $("backRecharge").onclick=renderRecharge;
 async function openRechargeRecord(id){
- if(!canOpenView("recharge"))return;
- const r=workwearReturns.find(x=>x.id===id);if(!r)return;
- await secureNavigate("recharge");$("rechargeListPanel").classList.add("hidden");$("rechargeDetailPanel").classList.remove("hidden");
+ if(!m365Token||!canOpenView("recharge"))return say("Sign in with a profile that has Recharge access.",false);
+ let r=workwearReturns.find(x=>String(x.id)===String(id));if(!r){await loadReturnsFromSharePoint();r=workwearReturns.find(x=>String(x.id)===String(id))}if(!r)return say("This return or replacement could not be found. Refresh the returns list and try again.",false);
+ displayView("recharge");$("rechargeListPanel").classList.add("hidden");$("rechargeDetailPanel").classList.remove("hidden");
  const replacement=isReplacementRecord(r),items=[...(r.lines||[]).map(l=>({...l,kind:"Returned item"})),...(r.replacements||[]).map(l=>({...l,kind:"Replacement item"}))];
  $("rechargeDetailTitle").textContent=r.id+" — "+(replacement?"Replacement":"Return");
  $("rechargeDetail").innerHTML='<p><strong>Employee:</strong> '+esc(r.employee)+' &nbsp; <strong>Company:</strong> '+esc(r.company)+' &nbsp; <strong>Original order:</strong> '+esc(r.orderId||"Manual")+'</p><div class="table-wrap"><table><thead><tr><th>Type</th><th>Item</th><th>Size</th><th>Qty</th><th>Reason</th></tr></thead><tbody>'+items.map(l=>'<tr><td>'+esc(l.kind)+'</td><td>'+esc(l.item)+'</td><td>'+esc(l.size)+'</td><td>'+esc(l.qty)+'</td><td>'+esc(l.reason||r.reason||"—")+'</td></tr>').join("")+'</tbody></table></div><div class="grid"><div class="field"><label>'+(replacement?"Replacement recharge value":"Refund value")+'</label><input id="transactionAmount" type="number" min="0" step="0.01" value="'+Number(replacement?r.replacementCharge:r.refundValue).toFixed(2)+'"></div>'+(replacement?'<div class="field"><label>Extra delivery recharge</label><input id="transactionDelivery" type="number" min="0" step="0.01" value="'+Number(r.deliveryCharge||0).toFixed(2)+'"></div>':'')+'<div class="field"><label>'+(replacement?"adi invoice or recharge reference":"Credit note or refund reference")+'</label><input id="transactionReference" value="'+esc(r.refundReference||"")+'"></div></div><p><strong>Total '+(replacement?"additional recharge":"refund")+': <span id="transactionTotal"></span></strong></p><div class="actions"><button class="btn" id="saveTransaction">Save adjustment</button><button class="btn primary" id="completeTransaction">'+(replacement?"Mark recharged":"Mark refunded")+'</button></div>';
@@ -888,7 +888,7 @@ function originalOrderSummary(id){
 const originalReturnLinesCore=renderReturnLines;
 renderReturnLines=()=>{originalReturnLinesCore();let summary=$("returnOriginalSummary");if(!summary){summary=document.createElement("div");summary.id="returnOriginalSummary";$("returnLines").closest(".table-wrap").before(summary)}summary.innerHTML=$("returnType").value==="manual"?"":originalOrderSummary($("returnOrder").value)};
 const originalRechargeRecordCore=openRechargeRecord;
-openRechargeRecord=async id=>{await originalRechargeRecordCore(id);const record=workwearReturns.find(r=>r.id===id);if(record)$("rechargeDetail").insertAdjacentHTML("afterbegin",originalOrderSummary(record.orderId))};
+openRechargeRecord=async id=>{try{await originalRechargeRecordCore(id);const record=workwearReturns.find(r=>String(r.id)===String(id));if(record&&!$("rechargeDetailPanel").classList.contains("hidden"))$("rechargeDetail").insertAdjacentHTML("afterbegin",originalOrderSummary(record.orderId))}catch(error){console.error("Recharge record failed to open",error);say("Recharge record could not be opened: "+error.message,false)}};
 
 
 function highlightWorkflowField(id,message){
@@ -932,6 +932,13 @@ openOrder=id=>{
  };
  if(panel.mandatoryWorkflowGuard)panel.removeEventListener("click",panel.mandatoryWorkflowGuard,true);panel.mandatoryWorkflowGuard=guard;panel.addEventListener("click",guard,true);
 };
+
+
+document.addEventListener("click",event=>{
+ const button=event.target.closest("[data-refund],[data-return-open],[data-recharge-return]");
+ if(!button)return;event.preventDefault();event.stopImmediatePropagation();
+ openRechargeRecord(button.dataset.refund||button.dataset.returnOpen||button.dataset.rechargeReturn);
+},true);
 
 updateFormSignIn();initialiseM365();
 </script></body></html>
