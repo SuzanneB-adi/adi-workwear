@@ -254,7 +254,8 @@ $("submitOrder").onclick=()=>{const employeeType=$("employeeType").value,needByD
 const needByOpenOrderCore=openOrder;
 openOrder=id=>{needByOpenOrderCore(id);const order=orders.find(o=>o.id===id),grid=$("orderDetail")?.querySelector(".grid");if(order&&grid){const field=document.createElement("div");field.className="field";field.innerHTML='<label>Need-by date</label><input value="'+(order.needByDate?ukDateValue(order.needByDate):"Not applicable")+'" disabled>';grid.appendChild(field)}};
 
-function latestRequestFormUrl(){return new URL('request-form.html',location.href).toString()}
+function isRequestFormOnly(){const params=new URLSearchParams(location.search);return location.hash==='#request'||params.get('form')==='1'||params.get('embed')==='1'}
+function latestRequestFormUrl(){const url=new URL('index.html',location.href);url.search='';url.searchParams.set('form','1');url.searchParams.set('v',Date.now().toString());url.hash='request';return url.toString()}
 async function copyLatestRequestFormLink(){const url=latestRequestFormUrl();try{await navigator.clipboard.writeText(url);say("Latest request form link copied.")}catch{window.prompt("Copy this latest request form link:",url)}}
 const requestShareButton=document.createElement("button");requestShareButton.className="btn primary";requestShareButton.textContent="Copy request form link";requestShareButton.onclick=copyLatestRequestFormLink;const managementTitleActions=document.createElement("div");managementTitleActions.className="actions";managementTitleActions.style.marginLeft="auto";const backOrdersButton=$("backOrders");backOrdersButton.classList.remove("small");backOrdersButton.classList.add("hidden");[requestShareButton,backOrdersButton].forEach(button=>button.style.minWidth="205px");backOrdersButton.onclick=()=>{renderOrders();backOrdersButton.classList.add("hidden")};managementTitleActions.append(requestShareButton,backOrdersButton);$("managementView").querySelector(".view-title").appendChild(managementTitleActions);
 setTimeout(()=>{if(location.hash==="#request"||!location.hash)displayView("order")},25);
@@ -284,9 +285,9 @@ const cancelledValueRenderCore=renderOrders;
 renderOrders=()=>{cancelledValueRenderCore();document.querySelectorAll("#ordersBody [data-order]").forEach(button=>{const order=orders.find(o=>o.id===button.dataset.order);if(order?.status==="Cancelled"){const valueCell=button.closest("tr")?.lastElementChild;if(valueCell)valueCell.textContent="—"}});$("rechargedMetric").textContent=money(dashboardOrders().filter(o=>o.status==="Recharged").reduce((s,o)=>s+actualRecharge(o),0))};
 
 /* Standalone employee request link: presentation-only separation from management. */
-function applyEmployeeRequestMode(){const embedded=new URLSearchParams(location.search).get("embed")==="1",formOnly=location.hash==="#request"||embedded;document.body.classList.toggle("employee-request-mode",formOnly);document.body.classList.toggle("embed-mode",embedded);document.querySelector("header .nav").classList.toggle("hidden",formOnly);if(formOnly){displayView("order");if(embedded&&!location.pathname.endsWith('/request-form.html'))history.replaceState(null,'',new URL('request-form.html?embed=1#request',location.href).toString())}}
-const formSignIn=document.createElement("button");formSignIn.type="button";formSignIn.className="btn primary";formSignIn.textContent="Sign in with Microsoft";formSignIn.onclick=()=>connectM365(true);$("orderView").querySelector(".view-title").appendChild(formSignIn);
-function updateFormSignIn(){formSignIn.classList.toggle("hidden",new URLSearchParams(location.search).get("embed")!=="1"||!!m365Token)}
+function applyEmployeeRequestMode(){const embedded=new URLSearchParams(location.search).get("embed")==="1",formOnly=isRequestFormOnly();document.body.classList.toggle("employee-request-mode",formOnly);document.body.classList.toggle("embed-mode",embedded);document.querySelector("header .nav").classList.toggle("hidden",formOnly);if(formOnly)displayView("order")}
+const formSignIn=document.createElement("button");formSignIn.type="button";formSignIn.className="btn primary";formSignIn.textContent="Sign in with Microsoft";formSignIn.onclick=async()=>{formSignIn.disabled=true;try{await connectM365(true);if(m365Token)await verifyM365Connection()}catch(error){say("The latest request form data could not be loaded: "+error.message,false)}finally{formSignIn.disabled=false;updateFormSignIn()}};$("orderView").querySelector(".view-title").appendChild(formSignIn);
+function updateFormSignIn(){formSignIn.classList.toggle("hidden",!isRequestFormOnly()||!!m365Token)}
 window.addEventListener("hashchange",applyEmployeeRequestMode);
 applyEmployeeRequestMode();
 
@@ -344,7 +345,7 @@ async function loadM365Access(){
   const adiUser=email.endsWith("@adiltd.co.uk"),role=fieldValue(user,["Role","UserRole"])||(adiUser?"Request User":""),mdCompanies=companies.filter(company=>catalogueKey(companyMDs[company]?.email)===email);
   currentAccess={role,email,companies:mdCompanies,canDelete:boolValue(fieldValue(user,["CanDeleteOrders","Can_x0020_Delete_x0020_Orders"]))};applyMenuPermissions();renderSystemUsers();enableUserManagement();
   if(!user&&!adiUser){say("This Microsoft account is outside adiltd.co.uk and has not been granted a Workwear role.",false);return}
-  say("Signed in as "+role+".");if(canOpenView("management")&&location.hash!=="#request"&&new URLSearchParams(location.search).get("embed")!=="1")secureNavigate("management")
+  say("Signed in as "+role+".");if(canOpenView("management")&&!isRequestFormOnly())secureNavigate("management")
  }catch(error){console.error(error);currentAccess={role:"",email:m365Account?.username||"",companies:[],canDelete:false};applyMenuPermissions();say("SharePoint connected, but the workwear lists could not be read: "+error.message,false)}
 }
 function activeField(fields){const value=fieldValue(fields,["Active","IsActive"]);return value===""||value===null||value===undefined?true:boolValue(value)}
@@ -833,7 +834,7 @@ renderDashboardGraph=()=>{
 const returnsMenuCore=permissionsForRole;
 permissionsForRole=role=>({...returnsMenuCore(role),returns:["workwear manager","workwear admin","system admin"].includes(roleKey(role)),recharge:["request user","workwear manager","workwear admin","system admin"].includes(roleKey(role))});
 const returnsShowCore=showView;
-showView=view=>{if(new URLSearchParams(location.search).get("embed")==="1"&&view!=="order")return returnsShowCore("order");if(view==="returns"){if(!canOpenView("returns"))return;renderReturns()}if(view==="recharge"){if(!canOpenView("recharge"))return;renderRecharge()}returnsShowCore(view);if(view==="recharge"&&m365Token)refreshOrdersFromSharePoint(true)};
+showView=view=>{if(isRequestFormOnly()&&view!=="order")return returnsShowCore("order");if(view==="returns"){if(!canOpenView("returns"))return;renderReturns()}if(view==="recharge"){if(!canOpenView("recharge"))return;renderRecharge()}returnsShowCore(view);if(view==="recharge"&&m365Token)refreshOrdersFromSharePoint(true)};
 const rechargeNavigateCore=secureNavigate;
 secureNavigate=async view=>{await rechargeNavigateCore(view);if(view==="recharge"&&!rechargeView.classList.contains("hidden")){renderRecharge();if(m365Token)refreshOrdersFromSharePoint(true)}};
 const rechargeRefreshCore=refreshOrdersFromSharePoint;
