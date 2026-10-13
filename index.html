@@ -229,10 +229,37 @@ const approvalsShowCore=showView;showView=view=>{if(view==="approvals"&&sessionS
 function approvalScreenLink(order){return location.href.split("#")[0]+"#approval="+encodeURIComponent(order.id)}
 function renderLinkedApprovalMessage(){const box=$("approvalLinkMessage");if(!linkedApprovalId){box.className="notice";return}const order=orders.find(o=>o.id===linkedApprovalId);if(!order){box.textContent="This approval request is not available in this browser. The shared database must be connected before approval links can work across different devices.";box.className="notice show bad";return}box.textContent=order.status==="Awaiting MD approval"?"Approval request "+order.id+" is ready for review below.":"Request "+order.id+" currently has the status: "+order.status+".";box.className="notice show "+(order.status==="Awaiting MD approval"?"good":"bad");const open=document.querySelector('[data-approval-open="'+order.id+'"]');open?.closest("tr")?.scrollIntoView({behavior:"smooth",block:"center"})}
 
-emailMD=order=>{const md=companyMDs[order.company]||{};if(!md.email)return say("Add the MD email address for "+order.company+" in Admin first.",false);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(md.email))return say("The MD email address for "+order.company+" is not valid. Update it in Admin.",false);const link=approvalScreenLink(order),subject="Workwear approval required: "+order.id,body="Hello "+(md.name||"")+",\r\n\r\nPlease review workwear request "+order.id+" for "+order.first+" "+order.last+" ("+order.company+").\r\n\r\nProject: "+order.project+"\r\nCalculated recharge: "+money(order.finalRecharge)+"\r\n\r\nOpen the approvals screen:\r\n"+link+"\r\n \r\nPlease approve the request in the Workwear Management app.",url="https://outlook.office.com/mail/deeplink/compose?to="+encodeURIComponent(md.email)+"&subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body),opened=window.open(url,"_blank");order.approvalEmailSentAt=new Date().toISOString();order.approvalEmailRecipient=md.email;save(STORAGE.orders,orders);if(!opened){const fallback="To: "+md.email+"\nSubject: "+subject+"\n\n"+body;navigator.clipboard?.writeText(fallback);say("The Outlook window was blocked. The approval email details and link have been copied.",false)}else say((order.approvalEmailSentAt?"Approval email opened for ":"Approval email prepared for ")+md.name+".")};
+const approvalEmailRequests=new Set();
+emailMD=async order=>{
+ if(!order)return;
+ if(order.status!=="Awaiting MD approval")return say("This order must be awaiting MD approval before requesting an approval email.",false);
+ if(approvalEmailRequests.has(order.id))return;
+ approvalEmailRequests.add(order.id);
+ try{
+  await ensureM365Write();
+  if(!order.sharePointItemId)throw Error("Refresh orders from SharePoint before requesting the approval email.");
+  const companyDefinition=await getListDefinition("WorkwearCompanies");await loadCompanyReferences(companyDefinition);
+  const company=(await getListItems("WorkwearCompanies")).find(row=>catalogueKey(companyField(row.fields||{},COMPANY_NAME_ALIASES))===catalogueKey(order.company));
+  const emailColumn=matchColumn(companyDefinition.columns,MD_EMAIL_ALIASES);
+  const email=String(company?.fields?.[emailColumn?.name]||"").trim();
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error("Save a valid MD email for "+order.company+" in WorkwearCompanies first.");
+  const definition=await getListDefinition("WorkwearOrders");
+  if(!matchColumn(definition.columns,["MD Email Sent","MDEmailSent"]))throw Error("WorkwearOrders is missing MDEmailSent, which the approval email flow needs.");
+  await updateSharePointItem("WorkwearOrders",order.sharePointItemId,[
+   {aliases:["Status"],value:"Awaiting MD approval"},
+   {aliases:["MD Email Sent","MDEmailSent"],value:false},
+   {aliases:["MD Email Sent Date","MDEmailSentDate"],value:null}
+  ]);
+  order.approvalEmailRequestedAt=new Date().toISOString();
+  order.approvalEmailRecipient=email;
+  save(STORAGE.orders,orders);
+  say("Approval email requested for "+order.id+". Power Automate will send it to "+email+".");
+ }catch(error){console.error(error);say("The approval email could not be requested: "+error.message,false)}
+ finally{approvalEmailRequests.delete(order.id)}
+};
 
 const resendOpenOrderCore=openOrder;
-openOrder=id=>{resendOpenOrderCore(id);const order=orders.find(o=>o.id===id);if(!order)return;const buttons=[...$("orderDetail").querySelectorAll("button")],emailButton=buttons.find(b=>b.textContent.trim()==="Email MD");if(emailButton)emailButton.textContent=order.approvalEmailSentAt?"Resend approval email":"Send approval email";if(order.approvalEmailSentAt){const actions=emailButton?.parentElement,note=document.createElement("span");note.className="muted";note.textContent="Last emailed "+new Date(order.approvalEmailSentAt).toLocaleString("en-GB");actions?.appendChild(note)}};
+openOrder=id=>{resendOpenOrderCore(id);const order=orders.find(o=>o.id===id);if(!order)return;const buttons=[...$("orderDetail").querySelectorAll("button")],emailButton=buttons.find(b=>b.textContent.trim()==="Email MD");if(emailButton)emailButton.textContent=order.approvalEmailSentAt?"Resend approval email":"Send approval email";if(order.approvalEmailRequestedAt){const actions=emailButton?.parentElement,note=document.createElement("span");note.className="muted";note.textContent="Last email requested "+new Date(order.approvalEmailRequestedAt).toLocaleString("en-GB");actions?.appendChild(note)}};
 const resendQueueCore=renderApprovalQueue;
 renderApprovalQueue=()=>{resendQueueCore();document.querySelectorAll("[data-email-md]").forEach(button=>{const order=orders.find(o=>o.id===button.dataset.emailMd);button.textContent=order?.approvalEmailSentAt?"Resend email":"Send email"})};
 
