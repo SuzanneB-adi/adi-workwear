@@ -1068,7 +1068,41 @@ document.addEventListener("click",event=>{
 const refreshCompanyButton=document.createElement("button");refreshCompanyButton.className="btn small";refreshCompanyButton.textContent="Refresh companies and MDs from SharePoint";$("mdAdminBody").closest("table").parentElement.before(refreshCompanyButton);refreshCompanyButton.onclick=async()=>{refreshCompanyButton.disabled=true;try{await ensureM365Write();await refreshSharePointCompanies();say("Companies and MD details refreshed from SharePoint.")}catch(error){say("Companies could not be refreshed: "+error.message,false)}finally{refreshCompanyButton.disabled=false}};
 
 mdDirectoryReady=true;
-const appVersionLabel=document.createElement("p");appVersionLabel.className="browser-note";appVersionLabel.style.cssText="text-align:center;padding:12px";appVersionLabel.textContent="App version 2026.10.27.5";document.querySelector("main").appendChild(appVersionLabel);
+
+/* Save scheduling changes independently of purchasing/recharge fields. */
+function addNeedByEditor(order,container){
+ if(!order||!container||!["workwear admin","workwear manager","system admin"].includes(roleKey(currentAccess.role)))return;
+ const field=document.createElement("div");field.className="field";field.dataset.needByEditor="true";
+ const label=document.createElement("label"),input=document.createElement("input"),button=document.createElement("button");
+ label.textContent="Need-by date";input.type="date";input.value=sharePointDateOnly(order.needByDate||"");input.setAttribute("aria-label","Need-by date");
+ button.type="button";button.className="btn small";button.textContent="Save need-by date";
+ field.append(label,input,button);
+ const existing=[...container.querySelectorAll(".field")].find(value=>value.querySelector("label")?.textContent==="Need-by date");
+ if(existing)existing.replaceWith(field);else container.prepend(field);
+ button.onclick=async()=>{
+  if(!["workwear admin","workwear manager","system admin"].includes(roleKey(currentAccess.role)))return say("You do not have permission to edit this date.",false);
+  if(!input.value||!input.checkValidity())return say("Enter a valid need-by date before saving.",false);
+  const date=input.value;button.disabled=true;input.disabled=true;
+  try{
+   await ensureM365Write();
+   const definition=await getListDefinition("WorkwearOrders");
+   if(!matchColumn(definition.columns,["Need By Date","NeedByDate"]))throw Error("WorkwearOrders needs a Need By Date column before this date can be saved.");
+   if(!order.sharePointItemId){const rows=await getListItems("WorkwearOrders"),item=rows.find(item=>catalogueKey(fieldValue(item.fields||{},["Title","Request ID","Order ID"]))===catalogueKey(order.id));if(item)order.sharePointItemId=String(item.id)}
+   if(!order.sharePointItemId)throw Error("The matching SharePoint order could not be found. Refresh orders and try again.");
+   await updateSharePointItem("WorkwearOrders",order.sharePointItemId,[{aliases:["Need By Date","NeedByDate"],value:date}]);
+   order.needByDate=date;save(STORAGE.orders,orders);
+   document.querySelectorAll('[data-need-by-editor] input').forEach(control=>control.value=date);
+   say(order.id+" need-by date saved to SharePoint.");
+  }catch(error){say("Need-by date was not saved: "+error.message,false)}
+  finally{button.disabled=false;input.disabled=false}
+ };
+}
+const editableNeedByOrderCore=openOrder;
+openOrder=id=>{editableNeedByOrderCore(id);addNeedByEditor(orders.find(order=>order.id===id),$("orderDetail")?.querySelector(".grid"))};
+const editableNeedByApprovalCore=openApprovalOrder;
+openApprovalOrder=id=>{editableNeedByApprovalCore(id);const order=approvalAccessOrders().find(order=>order.id===id);if(!approvalOrderDetailPanel.classList.contains("hidden"))addNeedByEditor(order,approvalOrderDetailPanel.querySelector(".panel-body"))};
+
+const appVersionLabel=document.createElement("p");appVersionLabel.className="browser-note";appVersionLabel.style.cssText="text-align:center;padding:12px";appVersionLabel.textContent="App version 2026.10.27.6";document.querySelector("main").appendChild(appVersionLabel);
 updateFormSignIn();initialiseM365();
 </script></body></html>
 
