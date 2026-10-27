@@ -412,8 +412,10 @@ function installMDDirectoryChoices(){
  const contacts=mdDirectoryContacts();
  companies.forEach((company,i)=>{
   const name=$("mdName"+i),email=$("mdEmail"+i),saved=companyMDs[company]||{};if(!name||!email)return;
-  const options=contacts.slice();
-  name.innerHTML='<option value="">Select an MD</option>'+options.map(contact=>'<option value="'+esc(contact.name)+'" data-email="'+esc(contact.email)+'" '+(catalogueKey(contact.name)===catalogueKey(saved.name)&&catalogueKey(contact.email)===catalogueKey(saved.email)?'selected':'')+'>'+esc(contact.name)+(contact.email?' — '+esc(contact.email):'')+'</option>').join("");
+  const options=contacts.slice(),selectedEmail=catalogueKey(saved.email),selectedName=catalogueKey(saved.name);
+  const selectedContact=selectedEmail?options.find(contact=>catalogueKey(contact.email)===selectedEmail):options.filter(contact=>catalogueKey(contact.name)===selectedName).length===1?options.find(contact=>catalogueKey(contact.name)===selectedName):null;
+  name.innerHTML='<option value="">Select an MD</option>'+options.map(contact=>'<option value="'+esc(contact.name)+'" data-email="'+esc(contact.email)+'" '+(contact===selectedContact?'selected':'')+'>'+esc(contact.name)+(contact.email?' — '+esc(contact.email):'')+'</option>').join("");
+  if(selectedContact)email.value=selectedContact.email;
   name.onchange=()=>{email.value=name.selectedOptions[0]?.dataset.email||""};
   name.title=contacts.length?"Select an MD to fill their email address.":"No eligible users found. Add an active MD, Workwear Admin or System Admin in System Admin → Users, then refresh companies and MDs.";
   const emailColumn=matchColumn(listDefinitionCache.WorkwearCompanies?.columns||[],MD_EMAIL_ALIASES);
@@ -1066,7 +1068,7 @@ document.addEventListener("click",event=>{
 const refreshCompanyButton=document.createElement("button");refreshCompanyButton.className="btn small";refreshCompanyButton.textContent="Refresh companies and MDs from SharePoint";$("mdAdminBody").closest("table").parentElement.before(refreshCompanyButton);refreshCompanyButton.onclick=async()=>{refreshCompanyButton.disabled=true;try{await ensureM365Write();await refreshSharePointCompanies();say("Companies and MD details refreshed from SharePoint.")}catch(error){say("Companies could not be refreshed: "+error.message,false)}finally{refreshCompanyButton.disabled=false}};
 
 mdDirectoryReady=true;
-const appVersionLabel=document.createElement("p");appVersionLabel.className="browser-note";appVersionLabel.style.cssText="text-align:center;padding:12px";appVersionLabel.textContent="App version 2026.10.27.3";document.querySelector("main").appendChild(appVersionLabel);
+const appVersionLabel=document.createElement("p");appVersionLabel.className="browser-note";appVersionLabel.style.cssText="text-align:center;padding:12px";appVersionLabel.textContent="App version 2026.10.27.4";document.querySelector("main").appendChild(appVersionLabel);
 updateFormSignIn();initialiseM365();
 </script></body></html>
 
